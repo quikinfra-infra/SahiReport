@@ -1,0 +1,8 @@
+flutter_launcher_icons:
+  android: true
+  ios: false  # Set to true when you build for iOS
+  image_path: "assets/icons/ic_launcher.png"
+
+  # Adaptive icon (Android 8.0+)
+  adaptive_icon_background: "#1A2F5A"
+  adaptive_icon_foreground: "assets/icons/ic_launcher_foreground.png"

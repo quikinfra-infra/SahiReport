@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "101160836263",
+    "project_id": "myapp-123-678ec",
+    "storage_bucket": "myapp-123-678ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101160836263:android:b60d825b6d49326ccc8f82",
+        "android_client_info": {
+          "package_name": "com.example.dpr_version_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCo_FBG8ytIcQLvYqHT5XlFcPXioBAjHBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101160836263:android:5f4e0a228b99c4c6cc8f82",
+        "android_client_info": {
+          "package_name": "com.sahireport.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCo_FBG8ytIcQLvYqHT5XlFcPXioBAjHBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

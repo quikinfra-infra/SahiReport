@@ -1,0 +1,817 @@
+// lib/features/owner/projects/screens/project_detail_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/upgrade_dialog.dart';
+import '../../../../models/project_model.dart';
+import '../../../../models/project_user_model.dart';
+import '../../../../models/submission_model.dart';
+import '../../../../providers/project_user_provider.dart';
+import '../../../../providers/submission_provider.dart';
+import 'submission_detail_screen.dart';
+
+class ProjectDetailScreen extends ConsumerStatefulWidget {
+  final ProjectModel project;
+  const ProjectDetailScreen({super.key, required this.project});
+
+  @override
+  ConsumerState<ProjectDetailScreen> createState() =>
+      _ProjectDetailScreenState();
+}
+
+class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final usersState = ref.watch(projectUsersProvider(widget.project.id));
+
+    ref.listen(projectUsersProvider(widget.project.id), (_, next) {
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.error!), backgroundColor: AppTheme.error),
+        );
+        ref.read(projectUsersProvider(widget.project.id).notifier).clearError();
+      }
+    });
+
+    return Scaffold(
+      backgroundColor: AppTheme.grayBg,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            backgroundColor: AppTheme.navyDark,
+            foregroundColor: Colors.white,
+            pinned: true,
+            expandedHeight: 248,
+            collapsedHeight: kToolbarHeight,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: EdgeInsets.zero,
+              background: SafeArea(
+                bottom: false,
+                child: Container(
+                  color: AppTheme.navyDark,
+                  // bottom padding reserves a FULL tab-row (~56) of space so
+                  // the description sits a clear row above the TabBar that
+                  // lives in the SliverAppBar's `bottom` slot.
+                  padding: const EdgeInsets.fromLTRB(16, 52, 16, 56),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: widget.project.isActive
+                              ? AppTheme.successLight
+                              : AppTheme.errorLight,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          widget.project.isActive ? 'Active' : 'Closed',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: widget.project.isActive
+                                ? AppTheme.success
+                                : AppTheme.error,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(widget.project.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              height: 1.2,
+                              fontWeight: FontWeight.w700)),
+                      if (widget.project.description != null) ...[
+                        const SizedBox(height: 8),
+                        Text(widget.project.description!,
+                            style: const TextStyle(
+                                color: Color(0xFF7A90B8), fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            bottom: TabBar(
+              controller: _tabController,
+              indicatorColor: AppTheme.navyAccent,
+              labelColor: AppTheme.navyAccent,
+              unselectedLabelColor: const Color(0xFF4A5A7A),
+              labelStyle:
+              const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              tabs: [
+                Tab(text: 'Users (${usersState.users.length})'),
+                const Tab(text: 'Submissions'),
+              ],
+            ),
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _UsersTab(project: widget.project),
+            _SubmissionsTab(project: widget.project),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddUserSheet(context),
+        backgroundColor: AppTheme.navyMid,
+        icon: const Icon(Icons.person_add_outlined, color: Colors.white),
+        label: const Text('Add User',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  void _showAddUserSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddUserSheet(
+        onAdd: (name) async {
+          final user = await ref
+              .read(projectUsersProvider(widget.project.id).notifier)
+              .createUser(name);
+          if (user != null && context.mounted) {
+            Navigator.pop(context);
+            _showCodeDialog(context, user);
+          }
+        },
+      ),
+    );
+  }
+
+  void _showCodeDialog(BuildContext context, ProjectUserModel user) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _CodeGeneratedDialog(user: user),
+    );
+  }
+}
+
+// ── Users Tab ─────────────────────────────────────────────────
+class _UsersTab extends ConsumerWidget {
+  final ProjectModel project;
+  const _UsersTab({required this.project});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final usersState = ref.watch(projectUsersProvider(project.id));
+
+    if (usersState.isLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppTheme.navyMid));
+    }
+
+    if (usersState.users.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.people_outline, size: 56, color: AppTheme.grayBorder),
+              SizedBox(height: 16),
+              Text('No users yet',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.grayDark)),
+              SizedBox(height: 8),
+              Text(
+                  'Tap "Add User" to create a field worker\nand generate their access code.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: AppTheme.grayText)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async =>
+          ref.read(projectUsersProvider(project.id).notifier).loadUsers(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: usersState.users.length,
+        itemBuilder: (context, index) {
+          final user = usersState.users[index];
+          return _UserCard(
+            user: user,
+            onToggle: (isActive) {
+              ref
+                  .read(projectUsersProvider(project.id).notifier)
+                  .toggleUserStatus(user.id, isActive);
+            },
+            onShowCode: () {
+              showDialog(
+                context: context,
+                builder: (_) => _CodeGeneratedDialog(user: user),
+              );
+            },
+            onDelete: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Remove user?'),
+                  content: Text(
+                      'Remove ${user.name} from this project? Their past submissions will be kept.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Remove',
+                          style: TextStyle(color: AppTheme.error)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                ref
+                    .read(projectUsersProvider(project.id).notifier)
+                    .deleteUser(user.id);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── User Card ─────────────────────────────────────────────────
+class _UserCard extends StatelessWidget {
+  final ProjectUserModel user;
+  final Function(bool) onToggle;
+  final VoidCallback onShowCode;
+  final VoidCallback onDelete;
+
+  const _UserCard({
+    required this.user,
+    required this.onToggle,
+    required this.onShowCode,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = user.name.length >= 2
+        ? user.name.substring(0, 2).toUpperCase()
+        : user.name.toUpperCase();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.grayCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.grayBorder, width: 0.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color:
+              user.isActive ? AppTheme.successLight : AppTheme.errorLight,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Center(
+              child: Text(initials,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: user.isActive ? AppTheme.success : AppTheme.error,
+                  )),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user.name,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.navyDark)),
+                const SizedBox(height: 3),
+                GestureDetector(
+                  onTap: onShowCode,
+                  child: Row(
+                    children: [
+                      Text(
+                        user.accessCode.isNotEmpty
+                            ? user.accessCode
+                            : 'Tap to view code',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          color: AppTheme.navyMid,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.copy, size: 12, color: AppTheme.navyMid),
+                    ],
+                  ),
+                ),
+                if (user.lastLoginAt != null)
+                  Text(
+                      'Last login: ${user.lastLoginAt!.day}/${user.lastLoginAt!.month}/${user.lastLoginAt!.year}',
+                      style: const TextStyle(
+                          fontSize: 10, color: AppTheme.grayText)),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              GestureDetector(
+                onTap: () => onToggle(!user.isActive),
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: user.isActive
+                      ? AppTheme.activeBadge
+                      : AppTheme.inactiveBadge,
+                  child: Text(user.isActive ? 'Active' : 'Removed',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color:
+                        user.isActive ? AppTheme.success : AppTheme.error,
+                      )),
+                ),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: onDelete,
+                child: const Icon(Icons.delete_outline,
+                    size: 18, color: AppTheme.grayText),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Submissions Tab ───────────────────────────────────────────
+class _SubmissionsTab extends ConsumerWidget {
+  final ProjectModel project;
+  const _SubmissionsTab({required this.project});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final submissionsAsync = ref.watch(submissionsProvider(project.id));
+
+    return submissionsAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppTheme.navyMid),
+      ),
+      error: (e, _) => Center(
+        child: Text('Error: $e', style: const TextStyle(color: AppTheme.error)),
+      ),
+      data: (submissions) {
+        if (submissions.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.assignment_outlined,
+                      size: 56, color: AppTheme.grayBorder),
+                  SizedBox(height: 16),
+                  Text('No submissions yet',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.grayDark)),
+                  SizedBox(height: 8),
+                  Text('Field user submissions will appear here.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppTheme.grayText)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async =>
+              ref.invalidate(submissionsProvider(project.id)),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: submissions.length,
+            itemBuilder: (context, index) {
+              return _SubmissionCard(
+                submission: submissions[index],
+                project: project,
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Submission Card ───────────────────────────────────────────
+class _SubmissionCard extends StatelessWidget {
+  final SubmissionModel submission;
+  final ProjectModel project;
+  const _SubmissionCard({
+    required this.submission,
+    required this.project,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SubmissionDetailScreen(
+            submission: submission,
+            project: project,
+          ),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.grayCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.grayBorder, width: 0.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(submission.userName ?? 'Field User',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.navyDark)),
+                const Spacer(),
+                Text(_formatTime(submission.submittedAt),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.grayText)),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_forward_ios,
+                    size: 11, color: AppTheme.grayText),
+              ],
+            ),
+            if (submission.siteName != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined,
+                      size: 13, color: AppTheme.grayText),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(submission.siteName!,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppTheme.grayText)),
+                  ),
+                ],
+              ),
+            ],
+            if (submission.formText != null) ...[
+              const SizedBox(height: 6),
+              Text(submission.formText!,
+                  style:
+                  const TextStyle(fontSize: 13, color: AppTheme.navyDark),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis),
+            ],
+
+            // ── Photo thumbnails ───────────────────────────
+            if (submission.imageUrls != null &&
+                submission.imageUrls!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 56,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: submission.imageUrls!.length,
+                  itemBuilder: (context, i) => Container(
+                    width: 56,
+                    height: 56,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border:
+                      Border.all(color: AppTheme.grayBorder, width: 0.5),
+                      image: DecorationImage(
+                        image: NetworkImage(submission.imageUrls![i]),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.gps_fixed, size: 12, color: AppTheme.success),
+                const SizedBox(width: 4),
+                Text(
+                    '${submission.latitude.toStringAsFixed(4)}° N, '
+                        '${submission.longitude.toStringAsFixed(4)}° E',
+                    style:
+                    const TextStyle(fontSize: 11, color: AppTheme.success)),
+                const Spacer(),
+                Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: AppTheme.activeBadge,
+                  child: const Text('Verified',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.success,
+                          fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+}
+
+// ── Add User Sheet ────────────────────────────────────────────
+class _AddUserSheet extends StatefulWidget {
+  final Function(String name) onAdd;
+  const _AddUserSheet({required this.onAdd});
+
+  @override
+  State<_AddUserSheet> createState() => _AddUserSheetState();
+}
+
+class _AddUserSheetState extends State<_AddUserSheet> {
+  final _nameCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.grayBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Add Field User',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.navyDark)),
+            const SizedBox(height: 6),
+            const Text('An access code will be auto-generated for this user.',
+                style: TextStyle(fontSize: 12, color: AppTheme.grayText)),
+            const SizedBox(height: 20),
+            const Text('Full name *',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.grayDark)),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _nameCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Arjun Mehta',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              validator: (v) =>
+              v == null || v.trim().isEmpty ? 'Name is required' : null,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _loading
+                    ? null
+                    : () async {
+                  if (!_formKey.currentState!.validate()) return;
+                  setState(() => _loading = true);
+                  try {
+                    await widget.onAdd(_nameCtrl.text.trim());
+                  } catch (e) {
+                    if (context.mounted) {
+                      await UpgradeDialog.show(
+                        context,
+                        message: e
+                            .toString()
+                            .replaceFirst('Exception: ', ''),
+                      );
+                    }
+                    // Close the form sheet after the dialog is dismissed
+                    if (context.mounted) Navigator.pop(context);
+                  } finally {
+                    if (mounted) setState(() => _loading = false);
+                  }
+                },
+                icon: _loading
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome, size: 18),
+                label: Text(_loading
+                    ? 'Generating code...'
+                    : 'Create User & Generate Code'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Code Generated Dialog ─────────────────────────────────────
+class _CodeGeneratedDialog extends StatelessWidget {
+  final ProjectUserModel user;
+  const _CodeGeneratedDialog({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      contentPadding: const EdgeInsets.all(24),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.successLight,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Icon(Icons.check, color: AppTheme.success, size: 28),
+          ),
+          const SizedBox(height: 16),
+          const Text('User Created!',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.navyDark)),
+          const SizedBox(height: 6),
+          Text('${user.name} has been added to the project.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppTheme.grayText)),
+          const SizedBox(height: 20),
+          const Text('ACCESS CODE',
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.grayText,
+                  letterSpacing: 1.5)),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.navyDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(user.accessCode,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.navyAccent,
+                  letterSpacing: 6,
+                  fontFamily: 'monospace',
+                )),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: user.accessCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Code copied to clipboard!'),
+                  backgroundColor: AppTheme.success,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppTheme.successLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.copy, size: 16, color: AppTheme.success),
+                  SizedBox(width: 8),
+                  Text('Copy code',
+                      style: TextStyle(
+                          color: AppTheme.success,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+              'Share this code with the field worker.\nThey will use it to sign in.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: AppTheme.grayText)),
+        ],
+      ),
+      actions: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ),
+      ],
+    );
+  }
+}

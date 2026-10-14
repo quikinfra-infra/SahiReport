@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="SahiReport — GPS verified field reporting for every project.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SahiReport">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>SahiReport</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+<!-- Firebase (web push) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyDae6cG_X9gl75J_H_v3s-XTsvM8rtpQfM",
+    authDomain: "myapp-123-678ec.firebaseapp.com",
+    projectId: "myapp-123-678ec",
+    storageBucket: "myapp-123-678ec.firebasestorage.app",
+    messagingSenderId: "101160836263",
+    appId: "1:101160836263:web:9cd05a48c7de19f1cc8f82",
+    measurementId: "G-CQY0MCJBXZ"
+  });
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker
+        .register('firebase-messaging-sw.js')
+        .catch(function (e) { console.warn('SW registration failed', e); });
+    });
+  }
+</script>
+
+<script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
