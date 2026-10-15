@@ -119,6 +119,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
   // ── Owner: Register ────────────────────────────────────────
   Future<bool> registerOwner({
     required String email,
+    required String phone,
     required String password,
     required String fullName,
   }) async {
@@ -126,6 +127,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
     try {
       final signedIn = await _repo.registerOwner(
         email: email,
+        phone: phone,
         password: password,
         fullName: fullName,
       );
@@ -134,7 +136,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
           userType: AuthUserType.none,
           isLoading: false,
         );
-        return true; // needs email confirmation
+        return true; // needs email & phone confirmation
       }
       final owner = await _repo.getCurrentOwner();
       state = AuthSessionState(
@@ -152,6 +154,60 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
         error: e.toString().replaceAll('Exception: ', ''),
       );
       rethrow;
+    }
+  }
+
+  // ── Owner: Verify Email OTP ────────────────────────────────
+  Future<String?> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      await _repo.verifyEmailOtp(email: email, token: token);
+      state = state.copyWith(isLoading: false);
+      return null;
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+      return 'Invalid or expired email code. Please try again.';
+    }
+  }
+
+  // ── Owner: Send Phone OTP ──────────────────────────────────
+  Future<String?> sendPhoneOtp({required String phone}) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      await _repo.sendPhoneOtp(phone: phone);
+      state = state.copyWith(isLoading: false);
+      return null;
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+      return 'Failed to send SMS code. Check the number and try again.';
+    }
+  }
+
+  // ── Owner: Verify Phone OTP ────────────────────────────────
+  Future<String?> verifyPhoneOtp({
+    required String phone,
+    required String token,
+  }) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      await _repo.verifyPhoneOtp(phone: phone, token: token);
+      final owner = await _repo.getCurrentOwner();
+
+      state = AuthSessionState(
+        userType: AuthUserType.owner,
+        owner: owner,
+      );
+      if (owner != null) {
+        NotificationService.getAndSaveFCMToken(owner.id);
+        NotificationService.listenTokenRefresh(owner.id);
+      }
+      return null;
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+      return 'Invalid or expired SMS code. Please try again.';
     }
   }
 

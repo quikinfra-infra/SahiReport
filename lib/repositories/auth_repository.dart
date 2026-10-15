@@ -6,21 +6,53 @@ import '../models/project_user_model.dart';
 final supabase = Supabase.instance.client;
 
 class AuthRepository {
-  // ── Owner: Register ───────────────────────────────────────
+  // ── Owner: Register (Hybrid) ──────────────────────────────
   Future<bool> registerOwner({
     required String email,
+    required String phone,
     required String password,
     required String fullName,
   }) async {
     final response = await supabase.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName},
+      // Store phone in metadata initially so Razorpay and the app have it
+      data: {'full_name': fullName, 'phone': phone},
     );
     if (response.user == null) {
       throw Exception('Registration failed. Please try again.');
     }
     return response.session != null;
+  }
+
+  // ── Owner: Verify Email OTP (6-digit) ─────────────────────
+  Future<void> verifyEmailOtp({
+    required String email,
+    required String token,
+  }) async {
+    await supabase.auth.verifyOTP(
+      type: OtpType.signup,
+      email: email,
+      token: token,
+    );
+  }
+
+  // ── Owner: Send Phone OTP (SMS) ───────────────────────────
+  Future<void> sendPhoneOtp({required String phone}) async {
+    // Triggers a 6-digit SMS code via Supabase
+    await supabase.auth.signInWithOtp(phone: phone);
+  }
+
+  // ── Owner: Verify Phone OTP (SMS) ─────────────────────────
+  Future<void> verifyPhoneOtp({
+    required String phone,
+    required String token,
+  }) async {
+    await supabase.auth.verifyOTP(
+      type: OtpType.sms,
+      phone: phone,
+      token: token,
+    );
   }
 
   // ── Owner: Resend confirmation email ──────────────────────
@@ -123,8 +155,6 @@ class AuthRepository {
   }
 
   // ── Owner: Soft delete account ────────────────────────────
-  // Sets is_deleted=true and deleted_at=now(). A pg_cron job
-  // permanently deletes after 30 days.
   Future<void> softDeleteAccount(String ownerId) async {
     await supabase.from('owners').update({
       'is_deleted': true,
@@ -143,7 +173,6 @@ class AuthRepository {
   }
 
   // ── Owner: Get deletion date if account is soft-deleted ───
-  // Returns null if account is not deleted.
   Future<DateTime?> getAccountDeletionDate(String ownerId) async {
     final row = await supabase
         .from('owners')
@@ -172,5 +201,5 @@ class AuthRepository {
 
   // ── Current session ───────────────────────────────────────
   Session? get currentSession => supabase.auth.currentSession;
-  User?    get currentUser    => supabase.auth.currentUser;
+  User? get currentUser => supabase.auth.currentUser;
 }

@@ -9,10 +9,12 @@ import '../../features/auth/screens/owner_login_screen.dart';
 import '../../features/auth/screens/owner_register_screen.dart';
 import '../../features/auth/screens/code_login_screen.dart';
 import '../../features/auth/screens/confirm_email_screen.dart';
+import '../../features/auth/screens/otp_verification_screen.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
 import '../../features/auth/screens/account_pending_deletion_screen.dart';
 import '../../features/owner/dashboard/screens/owner_dashboard_screen.dart';
+import '../../features/owner/dashboard/screens/profile_edit_screen.dart';
 import '../../features/owner/projects/screens/project_detail_screen.dart';
 import '../../features/owner/billing/screens/billing_screen.dart';
 import '../../features/field_user/screens/field_home_screen.dart';
@@ -26,25 +28,21 @@ class AppRoutes {
   static const ownerRegister         = '/register';
   static const codeLogin             = '/code-login';
   static const confirmEmail          = '/confirm-email';
+  static const otpVerification       = '/otp-verification';
   static const forgotPassword        = '/forgot-password';
   static const resetPassword         = '/reset-password';
   static const accountPendingDeletion = '/account-pending-deletion';
   static const ownerDashboard        = '/owner/dashboard';
+  static const profileEdit           = '/owner/profile-edit';
   static const projectDetail         = '/owner/project/:id';
   static const billing               = '/billing';
   static const fieldHome             = '/field/home';
   static const fieldForm             = '/field/form';
 }
 
-// Global key so we can show dialogs/snackbars from anywhere,
-// independent of which screen is currently mounted.
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  // NOTE: do NOT ref.watch(authProvider) here — that would rebuild the
-  // entire GoRouter (and destroy the navigator + any open dialog) on
-  // every auth change. Auth changes are handled by refreshListenable,
-  // and the redirect reads the current auth state via ref.read below.
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
@@ -52,10 +50,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final location = state.matchedLocation;
 
-      // Always allow splash
       if (location == AppRoutes.splash) return null;
 
-      // Read auth state fresh at evaluation time
       final authState    = ref.read(authProvider);
       final isLoading    = authState.isLoading;
       final isOwner      = authState.isOwner;
@@ -66,12 +62,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (isLoading) return null;
 
-      // Password recovery session — only allow reset-password screen
       if (inRecovery && location != AppRoutes.resetPassword) {
         return AppRoutes.resetPassword;
       }
 
-      // Soft-deleted account — show the reactivation screen
       if (isPending && location != AppRoutes.accountPendingDeletion) {
         return AppRoutes.accountPendingDeletion;
       }
@@ -82,11 +76,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         AppRoutes.ownerRegister,
         AppRoutes.codeLogin,
         AppRoutes.confirmEmail,
+        AppRoutes.otpVerification,
         AppRoutes.forgotPassword,
         AppRoutes.resetPassword,
         AppRoutes.accountPendingDeletion,
       ];
 
+      // Exclude profileEdit from the strict authScreens redirect block
+      // so authenticated owners can freely access it from the dashboard.
       if (!isLoggedIn && !authScreens.contains(location)) {
         return AppRoutes.home;
       }
@@ -126,6 +123,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ConfirmEmailScreen(email: state.extra as String? ?? ''),
       ),
       GoRoute(
+        path: AppRoutes.otpVerification,
+        builder: (context, state) {
+          final extras = state.extra as Map<String, dynamic>? ?? {};
+          return OtpVerificationScreen(
+            email: extras['email'] as String? ?? '',
+            phone: extras['phone'] as String? ?? '',
+          );
+        },
+      ),
+      GoRoute(
         path: AppRoutes.forgotPassword,
         builder: (context, state) => const ForgotPasswordScreen(),
       ),
@@ -140,6 +147,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.ownerDashboard,
         builder: (context, state) => const OwnerDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profileEdit,
+        builder: (context, state) => const ProfileEditScreen(),
       ),
       GoRoute(
         path: AppRoutes.projectDetail,
@@ -167,8 +178,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 class _AuthStateListenable extends ChangeNotifier {
   _AuthStateListenable(Ref ref) {
     ref.listen(authProvider, (prev, next) {
-      // Refresh router on any navigationally relevant change:
-      // login/logout, recovery mode, or pending deletion state.
       final wasOwner      = prev?.isOwner ?? false;
       final wasField      = prev?.isFieldUser ?? false;
       final wasRecovery   = prev?.passwordRecovery ?? false;

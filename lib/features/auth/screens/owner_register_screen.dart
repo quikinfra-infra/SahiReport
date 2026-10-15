@@ -17,6 +17,7 @@ class OwnerRegisterScreen extends ConsumerStatefulWidget {
 class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
@@ -25,6 +26,7 @@ class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
@@ -33,21 +35,25 @@ class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
+
     final email = _emailCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+
     try {
       final needsConfirmation =
       await ref.read(authProvider.notifier).registerOwner(
         email: email,
+        phone: phone,
         password: _passCtrl.text,
         fullName: _nameCtrl.text.trim(),
       );
+
       if (!mounted) return;
+
       if (needsConfirmation) {
-        // Email confirmation required → go to check-your-email screen.
-        context.go(AppRoutes.confirmEmail, extra: email);
+        // Route to the new Dual OTP Verification Screen
+        context.go(AppRoutes.otpVerification, extra: {'email': email, 'phone': phone});
       }
-      // If confirmation is off, the router redirect handles moving to
-      // the dashboard automatically once owner state is set.
     } catch (_) {
       // Error is surfaced via the authProvider listener (snackbar).
     }
@@ -111,6 +117,20 @@ class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
                   decoration: _inputDecoration('John Doe'),
                   validator: (v) =>
                   v == null || v.trim().isEmpty ? 'Enter your name' : null,
+                ),
+                const SizedBox(height: 20),
+
+                // ── Phone Number ───────────────────────────
+                _buildLabel('Phone Number'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration('+91 9876543210'),
+                  validator: (v) => v == null || v.trim().length < 10
+                      ? 'Enter a valid phone number'
+                      : null,
                 ),
                 const SizedBox(height: 20),
 
