@@ -124,6 +124,13 @@ class AuthRepository {
     return OwnerModel.fromJson(data);
   }
 
+  // ── Owner: Get profile by ID (supports Co-Owner refresh) ──
+  Future<OwnerModel?> getOwnerById(String ownerId) async {
+    final data =
+    await supabase.from('owners').select().eq('id', ownerId).single();
+    return OwnerModel.fromJson(data);
+  }
+
   // ── Owner: Update profile fields ──────────────────────────
   Future<OwnerModel> updateOwnerProfile({
     required String ownerId,
@@ -183,6 +190,17 @@ class AuthRepository {
     if (!isDeleted) return null;
     final deletedAt = row['deleted_at'] as String?;
     return deletedAt != null ? DateTime.parse(deletedAt) : null;
+  }
+
+  // ── Co-Owner: Login via ADMN-XXXX code ────────────────────
+  Future<Map<String, dynamic>?> loginCoOwnerWithCode(String code) async {
+    final normalized = code.toUpperCase().trim();
+    final response = await supabase.rpc(
+      'login_co_owner_with_code',
+      params: {'p_code': normalized},
+    );
+    if (response == null) return null;
+    return Map<String, dynamic>.from(response as Map);
   }
 
   // ── Field User: Login via code ────────────────────────────

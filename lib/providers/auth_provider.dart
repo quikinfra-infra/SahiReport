@@ -19,6 +19,8 @@ class AuthSessionState {
   final AuthUserType userType;
   final OwnerModel? owner;
   final ProjectUserModel? fieldUser;
+  final bool isCoOwner;
+  final String? coOwnerName;
   final bool isLoading;
   final String? error;
   final bool passwordRecovery;
@@ -28,6 +30,8 @@ class AuthSessionState {
     this.userType = AuthUserType.none,
     this.owner,
     this.fieldUser,
+    this.isCoOwner = false,
+    this.coOwnerName,
     this.isLoading = false,
     this.error,
     this.passwordRecovery = false,
@@ -43,6 +47,8 @@ class AuthSessionState {
     AuthUserType? userType,
     OwnerModel? owner,
     ProjectUserModel? fieldUser,
+    bool? isCoOwner,
+    String? coOwnerName,
     bool? isLoading,
     String? error,
     bool? passwordRecovery,
@@ -52,6 +58,8 @@ class AuthSessionState {
       userType:         userType         ?? this.userType,
       owner:            owner            ?? this.owner,
       fieldUser:        fieldUser        ?? this.fieldUser,
+      isCoOwner:        isCoOwner        ?? this.isCoOwner,
+      coOwnerName:      coOwnerName      ?? this.coOwnerName,
       isLoading:        isLoading        ?? this.isLoading,
       error:            error,
       passwordRecovery: passwordRecovery ?? this.passwordRecovery,
@@ -249,7 +257,9 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, passwordRecovery: true);
       final msg = e.toString().replaceAll('Exception: ', '');
-      return msg.isNotEmpty ? msg : 'Couldn\'t update your password. Please try again.';
+      return msg.isNotEmpty
+          ? msg
+          : 'Couldn\'t update your password. Please try again.';
     }
   }
 
@@ -289,6 +299,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
       state = AuthSessionState(
         userType: AuthUserType.owner,
         owner: owner,
+        isCoOwner: false,
       );
       if (owner != null) {
         NotificationService.getAndSaveFCMToken(owner.id);
@@ -297,7 +308,8 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
       return null;
     } catch (e) {
       final raw = e.toString().toLowerCase();
-      final msg = raw.contains('not confirmed') || raw.contains('email not confirmed')
+      final msg = raw.contains('not confirmed') ||
+          raw.contains('email not confirmed')
           ? 'Please confirm your email first. Check your inbox for the link.'
           : 'Couldn\'t sign in. Check your email and password — or register '
           'if you don\'t have an account yet.';
@@ -306,11 +318,32 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
     }
   }
 
-  // ── Field User: Code Login ─────────────────────────────────
+  // ── Co-Owner OR Field User: Code Login ─────────────────────
   Future<void> loginWithCode(String code) async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, error: null);
     try {
-      final fieldUser = await _repo.loginWithCode(code);
+      final cleaned = code.toUpperCase().trim();
+
+      // 1. Check if this is a Co-Owner code (ADMN-XXXX or in owner_admins)
+      final coOwnerData = await _repo.loginCoOwnerWithCode(cleaned);
+      if (coOwnerData != null) {
+        final ownerMap =
+        Map<String, dynamic>.from(coOwnerData['owner'] as Map);
+        final owner = OwnerModel.fromJson(ownerMap);
+        final coOwnerName = coOwnerData['co_owner_name'] as String?;
+
+        state = AuthSessionState(
+          userType: AuthUserType.owner,
+          owner: owner,
+          isCoOwner: true,
+          coOwnerName: coOwnerName,
+          isLoading: false,
+        );
+        return;
+      }
+
+      // 2. Otherwise check Field User code
+      final fieldUser = await _repo.loginWithCode(cleaned);
       if (fieldUser == null) {
         state = state.copyWith(
           isLoading: false,
@@ -321,6 +354,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
       state = AuthSessionState(
         userType: AuthUserType.fieldUser,
         fieldUser: fieldUser,
+        isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
@@ -332,7 +366,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
 
   // ── Logout ─────────────────────────────────────────────────
   Future<void> logout() async {
-    if (state.isOwner) {
+    if (state.isOwner && !state.isCoOwner) {
       await _repo.logout();
     }
     state = const AuthSessionState(userType: AuthUserType.none);
@@ -341,7 +375,7 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
   // ── Owner: Soft-delete account ─────────────────────────────
   Future<void> softDeleteAccount() async {
     final owner = state.owner;
-    if (owner == null) return;
+    if (owner == null || state.isCoOwner) return;
     await _repo.softDeleteAccount(owner.id);
     await _repo.logout();
     state = const AuthSessionState(
@@ -406,7 +440,10 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
 
   // ── Refresh owner after plan upgrade ───────────────────────
   Future<void> refreshOwner() async {
-    final owner = await _repo.getCurrentOwner();
+    final currentId = state.owner?.id;
+    final owner = state.isCoOwner && currentId != null
+        ? await _repo.getOwnerById(currentId)
+        : await _repo.getCurrentOwner();
     if (owner != null) {
       state = state.copyWith(owner: owner);
     }

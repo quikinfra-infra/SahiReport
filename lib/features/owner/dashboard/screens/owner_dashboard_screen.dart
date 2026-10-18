@@ -7,8 +7,10 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/widgets/upgrade_dialog.dart';
 import '../../../../providers/auth_provider.dart';
+import '../../../../providers/co_owner_provider.dart';
 import '../../../../providers/project_provider.dart';
 import '../../../../providers/project_user_provider.dart';
+import '../../../../models/co_owner_model.dart';
 import '../../../../models/project_model.dart';
 import '../../../../models/project_user_model.dart';
 
@@ -200,6 +202,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   Widget _buildHomeTab() {
     final statsAsync = ref.watch(dashboardStatsProvider);
     final projectsState = ref.watch(projectsProvider);
+    final coOwnersState = ref.watch(coOwnersProvider);
 
     final activeProjects =
         statsAsync.value?['active_projects']?.toString() ?? '0';
@@ -218,6 +221,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       onRefresh: () async {
         ref.invalidate(dashboardStatsProvider);
         ref.invalidate(allUsersProvider);
+        await ref.read(coOwnersProvider.notifier).loadCoOwners();
         await ref.read(projectsProvider.notifier).loadProjects();
       },
       child: SingleChildScrollView(
@@ -263,6 +267,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+
+            // ── CO-OWNERS / ADMINS SECTION (Above My Projects) ──
+            _buildCoOwnersSection(coOwnersState),
             const SizedBox(height: 24),
 
             // My Projects Header & Filter Chips
@@ -288,6 +296,241 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ── CO-OWNERS SECTION WIDGET ────────────────────────────────
+  Widget _buildCoOwnersSection(CoOwnersState coOwnersState) {
+    final activeCount =
+        coOwnersState.coOwners.where((c) => c.isActive).length;
+    final canAddMore = activeCount < 5;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F6F9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_outlined,
+                        color: AppTheme.navyDark, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Co-Owners',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.navyDark,
+                        ),
+                      ),
+                      Text(
+                        '$activeCount/5 Active Seats',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF7A90B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                onPressed:
+                canAddMore ? () => _showAddCoOwnerSheet(context) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.navyDark,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.person_add_alt_1_outlined,
+                    size: 15, color: Colors.white),
+                label: const Text(
+                  'Add Co-Owner',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (coOwnersState.coOwners.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            ...coOwnersState.coOwners.map((coOwner) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            coOwner.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.navyDark,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          GestureDetector(
+                            onTap: () =>
+                                _showCoOwnerCodeDialog(context, coOwner),
+                            child: Row(
+                              children: [
+                                Text(
+                                  coOwner.accessCode,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.navyMid,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.copy,
+                                    size: 12, color: AppTheme.navyMid),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () async {
+                        try {
+                          await ref
+                              .read(coOwnersProvider.notifier)
+                              .toggleStatus(coOwner.id, !coOwner.isActive);
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e
+                                    .toString()
+                                    .replaceFirst('Exception: ', '')),
+                                backgroundColor: AppTheme.error,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: coOwner.isActive
+                            ? AppTheme.activeBadge
+                            : AppTheme.inactiveBadge,
+                        child: Text(
+                          coOwner.isActive ? 'Active' : 'Removed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: coOwner.isActive
+                                ? AppTheme.success
+                                : AppTheme.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Remove Co-Owner?'),
+                            content: Text(
+                                'Revoke dashboard access for ${coOwner.name}?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Remove',
+                                    style: TextStyle(color: AppTheme.error)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await ref
+                              .read(coOwnersProvider.notifier)
+                              .deleteCoOwner(coOwner.id);
+                        }
+                      },
+                      child: const Icon(Icons.delete_outline,
+                          size: 18, color: Color(0xFF7A90B8)),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showAddCoOwnerSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddCoOwnerSheet(
+        onAdd: (name) async {
+          final created =
+          await ref.read(coOwnersProvider.notifier).createCoOwner(name);
+          if (created != null && context.mounted) {
+            Navigator.pop(context);
+            _showCoOwnerCodeDialog(context, created);
+          }
+        },
+      ),
+    );
+  }
+
+  void _showCoOwnerCodeDialog(BuildContext context, CoOwnerModel coOwner) {
+    showDialog(
+      context: context,
+      builder: (_) => _CoOwnerCodeDialog(coOwner: coOwner),
     );
   }
 
@@ -715,7 +958,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 '• Verified GPS & Timestamped Site Photos\n'
                 '• Instant Field-to-Office Daily Progress Reports\n'
                 '• Tamper-proof PDF & Excel Exports\n'
-                '• Simple Access Code Login for Site Supervisors\n\n'
+                '• Simple Access Code Login for Site Supervisors & Co-Owners\n\n'
                 'Version 1.0.0',
           ),
         ),
@@ -746,11 +989,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             title: 'Terms & Conditions',
             content:
             '1. Free & Paid Project Slots\n'
-                'Every owner receives 2 active Free Tier projects with up to 5 active field user seats per project. Additional active projects require an annual Pro Project slot.\n\n'
+                'Every owner receives 2 active Free Tier projects with up to 5 active field user seats per project and up to 5 account Co-Owner seats. Additional active projects require an annual Pro Project slot.\n\n'
                 '2. Closing Projects & Slot Reuse\n'
                 'Closing a project permanently locks it in Read-Only mode (preventing new field submissions while preserving full historical export access) and immediately frees up the active project slot for reuse during your active subscription year.\n\n'
                 '3. Acceptable Use\n'
-                'Account owners are responsible for managing field user access codes and revoking access when personnel leave a project.',
+                'Account owners are responsible for managing field user and co-owner access codes and revoking access when personnel leave.',
           ),
         ),
 
@@ -1114,6 +1357,259 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Add Co-Owner Bottom Sheet ─────────────────────────────────
+class _AddCoOwnerSheet extends StatefulWidget {
+  final Future<void> Function(String name) onAdd;
+  const _AddCoOwnerSheet({required this.onAdd});
+
+  @override
+  State<_AddCoOwnerSheet> createState() => _AddCoOwnerSheetState();
+}
+
+class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
+  final _nameCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.grayBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Add Account Co-Owner',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.navyDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Generates a unique access code that grants full dashboard access across all your projects (up to 5 active Co-Owners).',
+              style: TextStyle(
+                  fontSize: 12, color: AppTheme.grayText, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Co-Owner / Partner Name *',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.grayDark,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _nameCtrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Rajesh Sharma (Partner)',
+                prefixIcon: Icon(Icons.admin_panel_settings_outlined),
+              ),
+              validator: (v) =>
+              v == null || v.trim().isEmpty ? 'Name is required' : null,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _loading
+                    ? null
+                    : () async {
+                  if (!_formKey.currentState!.validate()) return;
+                  setState(() => _loading = true);
+                  try {
+                    await widget.onAdd(_nameCtrl.text.trim());
+                  } catch (e) {
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(e
+                              .toString()
+                              .replaceFirst('Exception: ', '')),
+                          backgroundColor: AppTheme.error,
+                        ),
+                      );
+                    }
+                  } finally {
+                    if (mounted) setState(() => _loading = false);
+                  }
+                },
+                icon: _loading
+                    ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
+                )
+                    : const Icon(Icons.vpn_key_outlined, size: 18),
+                label: Text(_loading
+                    ? 'Generating Code...'
+                    : 'Create Co-Owner & Generate Code'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Co-Owner Code Generated Dialog ────────────────────────────
+class _CoOwnerCodeDialog extends StatelessWidget {
+  final CoOwnerModel coOwner;
+  const _CoOwnerCodeDialog({required this.coOwner});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      contentPadding: const EdgeInsets.all(24),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: AppTheme.successLight,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: const Icon(Icons.admin_panel_settings_outlined,
+                color: AppTheme.success, size: 28),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Co-Owner Code Ready!',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.navyDark,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${coOwner.name} can now access your owner dashboard using this code.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: AppTheme.grayText),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'CO-OWNER ACCESS CODE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.grayText,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: AppTheme.navyDark,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              coOwner.accessCode,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.navyAccent,
+                letterSpacing: 4,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: coOwner.accessCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Co-Owner code copied to clipboard!'),
+                  backgroundColor: AppTheme.success,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+              decoration: BoxDecoration(
+                color: AppTheme.successLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.copy, size: 16, color: AppTheme.success),
+                  SizedBox(width: 8),
+                  Text(
+                    'Copy code',
+                    style: TextStyle(
+                      color: AppTheme.success,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Share this code with your Co-Owner.\nThey can enter it on the "Login with Access Code" screen.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppTheme.grayText),
+          ),
+        ],
+      ),
+      actions: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ),
+      ],
     );
   }
 }
