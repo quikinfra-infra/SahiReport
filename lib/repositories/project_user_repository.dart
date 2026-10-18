@@ -20,9 +20,6 @@ class ProjectUserRepository {
   }
 
   // ── Get ALL users across all of an owner's projects ───────
-  // Joins the project name so the Users tab shows where each
-  // user belongs. Flattens the nested projects(name) into the
-  // flat project_name key that ProjectUserModel.fromJson expects.
   Future<List<ProjectUserModel>> getAllUsersForOwner(String ownerId) async {
     final response = await supabase
         .from('project_users')
@@ -41,23 +38,35 @@ class ProjectUserRepository {
   }
 
   // ── Create user with auto-generated code ──────────────────
-  // 5 users per project — same limit for free and paid projects.
-  // The distinction between free and paid is at the PROJECT level
-  // (how many projects you can create), not at the user level.
+  // 5 ACTIVE users per project — same limit for free and paid projects.
   Future<ProjectUserModel> createUser({
     required String projectId,
     required String ownerId,
     required String name,
   }) async {
-    final existing = await supabase
+    // 1. Ensure the project is not closed
+    final projectRow = await supabase
+        .from('projects')
+        .select('is_active')
+        .eq('id', projectId)
+        .single();
+
+    if (projectRow['is_active'] == false) {
+      throw Exception('Cannot add users to a closed project.');
+    }
+
+    // 2. Count only ACTIVE users in this project
+    final existingActive = await supabase
         .from('project_users')
         .select('id')
-        .eq('project_id', projectId);
+        .eq('project_id', projectId)
+        .eq('is_active', true);
 
-    if ((existing as List).length >= AppConstants.freePlanMaxUsersPerProject) {
+    if ((existingActive as List).length >=
+        AppConstants.freePlanMaxUsersPerProject) {
       throw Exception(
         'Each project allows up to '
-            '${AppConstants.freePlanMaxUsersPerProject} users.',
+            '${AppConstants.freePlanMaxUsersPerProject} active users.',
       );
     }
 

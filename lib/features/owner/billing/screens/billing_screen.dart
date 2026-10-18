@@ -27,8 +27,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   int get _totalPaise => _extraProjects * _pricePerProject;
   double get _totalRupees => _totalPaise / 100;
-  int get _totalProjects =>
-      AppConstants.freePlanMaxProjects + _extraProjects;
 
   @override
   void initState() {
@@ -49,14 +47,36 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
     try {
+      // Fetch current active slots so additional purchases accumulate properly
+      final currentRow = await supabase
+          .from('owners')
+          .select('pro_project_slots, pro_expires_at')
+          .eq('id', owner.id)
+          .single();
+
+      final int existingSlots = (currentRow['pro_project_slots'] as int?) ?? 0;
+      final String? expiresStr = currentRow['pro_expires_at'] as String?;
+      final bool isStillValid = expiresStr != null &&
+          DateTime.parse(expiresStr).isAfter(DateTime.now().toUtc());
+
+      final int updatedSlots =
+          (isStillValid ? existingSlots : 0) + _extraProjects;
+      final String newExpiry =
+      DateTime.now().toUtc().add(const Duration(days: 365)).toIso8601String();
+
       await supabase.from('owners').update({
         'plan_type': 'pro',
-        'extra_projects_count': _extraProjects,
+        'pro_project_slots': updatedSlots,
+        'extra_projects_count': updatedSlots,
+        'pro_expires_at': newExpiry,
       }).eq('id', owner.id);
 
       await ref.read(authProvider.notifier).refreshOwner();
 
-      if (mounted) _showSuccessDialog();
+      if (mounted) {
+        setState(() => _paying = false);
+        _showSuccessDialog(updatedSlots);
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -83,14 +103,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   void _startPayment() {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
-    setState(() { _paying = true; _error = null; });
+    setState(() {
+      _paying = true;
+      _error = null;
+    });
 
     final options = {
       'key': AppConstants.razorpayKeyId,
       'amount': _totalPaise,
       'name': AppConstants.appName,
       'description':
-      '$_extraProjects extra project${_extraProjects == 1 ? '' : 's'} · 1 year',
+      '$_extraProjects Pro project slot${_extraProjects == 1 ? '' : 's'} · 1 year',
       'prefill': {
         'contact': owner.phone ?? '',
         'email': owner.email,
@@ -108,9 +131,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     }
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(int totalProSlots) {
     final ctx = rootNavigatorKey.currentContext;
     if (ctx == null) return;
+    final totalActiveCapacity =
+        AppConstants.freePlanMaxProjects + totalProSlots;
+
     showDialog(
       context: ctx,
       useRootNavigator: true,
@@ -126,7 +152,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64, height: 64,
+                width: 64,
+                height: 64,
                 decoration: BoxDecoration(
                   color: AppTheme.success.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
@@ -135,22 +162,24 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     color: AppTheme.success, size: 32),
               ),
               const SizedBox(height: 18),
-              const Text('Projects unlocked!',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+              const Text('Project Slots Unlocked!',
+                  style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
                       color: AppTheme.navyDark)),
               const SizedBox(height: 10),
               Text(
-                'You now have $_totalProjects projects available '
-                    '($_extraProjects extra + ${AppConstants.freePlanMaxProjects} free). '
-                    'Each project supports up to '
-                    '${AppConstants.freePlanMaxUsersPerProject} field users.',
+                'You now have $totalActiveCapacity active project slots '
+                    '($totalProSlots Pro + ${AppConstants.freePlanMaxProjects} Free) valid for 1 year.\n\n'
+                    'If a project finishes mid-year, permanently close it to immediately reuse its slot for a new project!',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 14, color: AppTheme.grayText,
-                    height: 1.5),
+                style: const TextStyle(
+                    fontSize: 13, color: AppTheme.grayText, height: 1.5),
               ),
               const SizedBox(height: 24),
               SizedBox(
-                width: double.infinity, height: 50,
+                width: double.infinity,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.of(dialogContext).pop();
@@ -164,7 +193,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         borderRadius: BorderRadius.circular(12)),
                   ),
                   child: const Text('Go to Dashboard',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                      style:
+                      TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ),
               ),
             ],
@@ -176,6 +206,9 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final totalWithPurchase =
+        AppConstants.freePlanMaxProjects + _extraProjects;
+
     return Scaffold(
       backgroundColor: AppTheme.grayBg,
       appBar: AppBar(
@@ -184,8 +217,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Add Projects',
-            style: TextStyle(color: Colors.white, fontSize: 16,
+        title: const Text('Add Project Slots',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
                 fontWeight: FontWeight.w600)),
         elevation: 0,
       ),
@@ -214,8 +249,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                       const Icon(Icons.folder_special_rounded,
                           color: AppTheme.navyAccent, size: 22),
                       const SizedBox(width: 8),
-                      const Text('Extra Projects',
-                          style: TextStyle(color: Colors.white, fontSize: 18,
+                      const Text('Pro Project Slots',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
                               fontWeight: FontWeight.w700)),
                       const Spacer(),
                       Container(
@@ -225,9 +262,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                           color: AppTheme.navyAccent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Text('YEARLY',
-                            style: TextStyle(color: AppTheme.navyAccent,
-                                fontSize: 10, fontWeight: FontWeight.w700,
+                        child: const Text('PER PROJECT / YEAR',
+                            style: TextStyle(
+                                color: AppTheme.navyAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5)),
                       ),
                     ],
@@ -237,35 +276,40 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text('₹${_totalRupees.toStringAsFixed(0)}',
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 34, fontWeight: FontWeight.w700,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w700,
                               height: 1)),
                       const Padding(
                         padding: EdgeInsets.only(bottom: 4, left: 4),
-                        child: Text('/year', style: TextStyle(
-                            color: Color(0xFF7A90B8), fontSize: 14)),
+                        child: Text('/year',
+                            style: TextStyle(
+                                color: Color(0xFF7A90B8), fontSize: 14)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('₹499 × $_extraProjects project'
-                      '${_extraProjects == 1 ? '' : 's'}',
-                      style: const TextStyle(color: Color(0xFF7A90B8),
-                          fontSize: 13)),
+                  Text(
+                      '₹${(_pricePerProject / 100).toStringAsFixed(0)} × $_extraProjects active project slot'
+                          '${_extraProjects == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                          color: Color(0xFF7A90B8), fontSize: 13)),
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
             // Project picker
-            const Text('How many extra projects?',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+            const Text('How many extra active project slots?',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                     color: AppTheme.navyDark)),
             const SizedBox(height: 6),
             Text(
-              'You already have ${AppConstants.freePlanMaxProjects} free projects. '
-                  'Each extra project holds up to '
-                  '${AppConstants.freePlanMaxUsersPerProject} field users.',
+              '${AppConstants.freePlanMaxProjects} active projects (${AppConstants.freePlanMaxUsersPerProject} seats each) are always free. '
+                  'Purchase extra annual slots for additional projects.',
               style: const TextStyle(fontSize: 12, color: AppTheme.grayText),
             ),
             const SizedBox(height: 16),
@@ -281,7 +325,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 Expanded(
                   child: Center(
                     child: Text('$_extraProjects',
-                        style: const TextStyle(fontSize: 32,
+                        style: const TextStyle(
+                            fontSize: 32,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.navyDark)),
                   ),
@@ -295,7 +340,9 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             const SizedBox(height: 8),
             Slider(
               value: _extraProjects.toDouble(),
-              min: 1, max: 20, divisions: 19,
+              min: 1,
+              max: 20,
+              divisions: 19,
               activeColor: AppTheme.navyMid,
               inactiveColor: AppTheme.grayBorder,
               onChanged: (v) => setState(() => _extraProjects = v.round()),
@@ -314,28 +361,35 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text("What you get",
-                      style: TextStyle(fontSize: 14,
-                          fontWeight: FontWeight.w600, color: AppTheme.navyDark)),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.navyDark)),
                   const SizedBox(height: 12),
                   ...[
-                    '$_totalProjects total projects '
+                    '$totalWithPurchase active projects at a time '
                         '(${AppConstants.freePlanMaxProjects} free + '
-                        '$_extraProjects purchased)',
-                    '${AppConstants.freePlanMaxUsersPerProject} field users per project',
+                        '$_extraProjects Pro)',
+                    'Reusable slots: close a completed project mid-year to start a new one on the same annual slot',
+                    'Closed projects keep 100% of data & exports forever',
+                    '${AppConstants.freePlanMaxUsersPerProject} active field users (seats) per project',
                     'PDF & Excel export on all projects',
-                    'No ads',
-                    'GPS-verified photo reports',
-                    'Push notifications',
+                    'GPS-verified photo reports & push notifications',
                   ].map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.check_circle_rounded,
-                            color: AppTheme.success, size: 16),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(Icons.check_circle_rounded,
+                              color: AppTheme.success, size: 16),
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(f,
-                              style: const TextStyle(fontSize: 13,
+                              style: const TextStyle(
+                                  fontSize: 13,
                                   color: AppTheme.textPrimary)),
                         ),
                       ],
@@ -357,12 +411,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
               child: Column(
                 children: [
                   _PriceLine(
-                      label: '$_extraProjects project'
-                          '${_extraProjects == 1 ? '' : 's'} × ₹499',
+                      label: '$_extraProjects Pro slot'
+                          '${_extraProjects == 1 ? '' : 's'} × ₹${(_pricePerProject / 100).toStringAsFixed(0)}',
                       value: '₹${_totalRupees.toStringAsFixed(0)}'),
                   const Divider(height: 20),
                   _PriceLine(
-                      label: 'Total due today',
+                      label: 'Total due today (1 Year)',
                       value: '₹${_totalRupees.toStringAsFixed(0)}',
                       bold: true),
                   const SizedBox(height: 4),
@@ -381,13 +435,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(_error!,
-                    style: const TextStyle(color: AppTheme.error, fontSize: 13)),
+                    style:
+                    const TextStyle(color: AppTheme.error, fontSize: 13)),
               ),
             ],
 
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity, height: 54,
+              width: double.infinity,
+              height: 54,
               child: ElevatedButton(
                 onPressed: _paying ? null : _startPayment,
                 style: ElevatedButton.styleFrom(
@@ -398,12 +454,14 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                       borderRadius: BorderRadius.circular(14)),
                 ),
                 child: _paying
-                    ? const SizedBox(width: 22, height: 22,
+                    ? const SizedBox(
+                    width: 22,
+                    height: 22,
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2))
                     : Text('Pay ₹${_totalRupees.toStringAsFixed(0)} →',
-                    style: const TextStyle(fontSize: 16,
-                        fontWeight: FontWeight.w700)),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
             const SizedBox(height: 12),
@@ -429,7 +487,8 @@ class _CountButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 44, height: 44,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
           color: onTap != null ? AppTheme.navyDark : AppTheme.grayBorder,
           borderRadius: BorderRadius.circular(12),
@@ -444,19 +503,24 @@ class _PriceLine extends StatelessWidget {
   final String label;
   final String value;
   final bool bold;
-  const _PriceLine({required this.label, required this.value,
-    this.bold = false});
+  const _PriceLine(
+      {required this.label, required this.value, this.bold = false});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 13,
-            color: bold ? AppTheme.navyDark : AppTheme.grayText,
-            fontWeight: bold ? FontWeight.w600 : FontWeight.normal)),
-        Text(value, style: TextStyle(fontSize: 13, color: AppTheme.navyDark,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
+        Text(label,
+            style: TextStyle(
+                fontSize: 13,
+                color: bold ? AppTheme.navyDark : AppTheme.grayText,
+                fontWeight: bold ? FontWeight.w600 : FontWeight.normal)),
+        Text(value,
+            style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.navyDark,
+                fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
       ],
     );
   }

@@ -2,11 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/upgrade_dialog.dart';
 import '../../../../models/project_model.dart';
 import '../../../../models/project_user_model.dart';
 import '../../../../models/submission_model.dart';
+import '../../../../providers/project_provider.dart';
 import '../../../../providers/project_user_provider.dart';
 import '../../../../providers/submission_provider.dart';
 import 'submission_detail_screen.dart';
@@ -40,6 +42,17 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
   Widget build(BuildContext context) {
     final usersState = ref.watch(projectUsersProvider(widget.project.id));
 
+    // Watch live project state so closing updates UI immediately
+    final currentProject = ref.watch(projectsProvider).projects.firstWhere(
+          (p) => p.id == widget.project.id,
+      orElse: () => widget.project,
+    );
+
+    // Count active users to check against the 5-seat limit
+    final activeUserCount = usersState.users.where((u) => u.isActive).length;
+    final canAddMoreUsers = currentProject.isActive &&
+        activeUserCount < AppConstants.freePlanMaxUsersPerProject;
+
     ref.listen(projectUsersProvider(widget.project.id), (_, next) {
       if (next.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -65,50 +78,115 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
                 bottom: false,
                 child: Container(
                   color: AppTheme.navyDark,
-                  // bottom padding reserves a FULL tab-row (~56) of space so
-                  // the description sits a clear row above the TabBar that
-                  // lives in the SliverAppBar's `bottom` slot.
                   padding: const EdgeInsets.fromLTRB(16, 52, 16, 56),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: widget.project.isActive
-                              ? AppTheme.successLight
-                              : AppTheme.errorLight,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          widget.project.isActive ? 'Active' : 'Closed',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: widget.project.isActive
-                                ? AppTheme.success
-                                : AppTheme.error,
+                      // ── Status Badges + Close Project Button Row ──
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: currentProject.isActive
+                                      ? AppTheme.successLight
+                                      : AppTheme.errorLight,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  currentProject.isActive
+                                      ? 'Active'
+                                      : 'Closed (Read-Only)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: currentProject.isActive
+                                        ? AppTheme.success
+                                        : AppTheme.error,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: currentProject.isPro
+                                      ? Colors.blue.shade50
+                                      : Colors.white.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  currentProject.isPro ? 'Pro' : 'Free Tier',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: currentProject.isPro
+                                        ? Colors.blue.shade700
+                                        : const Color(0xFF8BA3CB),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                          if (currentProject.isActive)
+                            OutlinedButton.icon(
+                              onPressed: () => _showCloseProjectDialog(
+                                  context, currentProject),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: BorderSide(
+                                    color:
+                                    AppTheme.error.withValues(alpha: 0.85)),
+                                backgroundColor:
+                                AppTheme.error.withValues(alpha: 0.25),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: const Icon(Icons.lock_outline,
+                                  size: 14, color: Colors.white),
+                              label: const Text(
+                                'Close Project',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 12),
-                      Text(widget.project.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              height: 1.2,
-                              fontWeight: FontWeight.w700)),
-                      if (widget.project.description != null) ...[
+                      Text(
+                        currentProject.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (currentProject.description != null) ...[
                         const SizedBox(height: 8),
-                        Text(widget.project.description!,
-                            style: const TextStyle(
-                                color: Color(0xFF7A90B8), fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
+                        Text(
+                          currentProject.description!,
+                          style: const TextStyle(
+                              color: Color(0xFF7A90B8), fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ],
                   ),
@@ -123,7 +201,9 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
               labelStyle:
               const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               tabs: [
-                Tab(text: 'Users (${usersState.users.length})'),
+                Tab(
+                    text:
+                    'Users ($activeUserCount/${AppConstants.freePlanMaxUsersPerProject})'),
                 const Tab(text: 'Submissions'),
               ],
             ),
@@ -132,17 +212,202 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
         body: TabBarView(
           controller: _tabController,
           children: [
-            _UsersTab(project: widget.project),
-            _SubmissionsTab(project: widget.project),
+            _UsersTab(project: currentProject),
+            _SubmissionsTab(project: currentProject),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: canAddMoreUsers
+          ? FloatingActionButton.extended(
         onPressed: () => _showAddUserSheet(context),
         backgroundColor: AppTheme.navyMid,
         icon: const Icon(Icons.person_add_outlined, color: Colors.white),
-        label: const Text('Add User',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        label: const Text(
+          'Add User',
+          style:
+          TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      )
+          : null,
+    );
+  }
+
+  void _showCloseProjectDialog(BuildContext context, ProjectModel project) {
+    bool isConfirmed = false;
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      color: AppTheme.error, size: 26),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Close Project Permanently?',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.navyDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'You are about to permanently close "${project.name}". Please review what happens next:',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppTheme.grayDark, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildBulletPoint(
+                      'Once closed, this project cannot be made active again.'),
+                  _buildBulletPoint(
+                      'Field users will no longer be able to log in or submit new reports.'),
+                  _buildBulletPoint(
+                      'All historical data, submissions, photos, and exports remain 100% accessible to you.'),
+                  _buildBulletPoint(
+                      'Closing frees up your active project slot so you can create a new project on your current subscription.'),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: isSubmitting
+                        ? null
+                        : () =>
+                        setDialogState(() => isConfirmed = !isConfirmed),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.grayBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isConfirmed
+                              ? AppTheme.navyMid
+                              : AppTheme.grayBorder,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: isConfirmed,
+                              activeColor: AppTheme.navyMid,
+                              onChanged: isSubmitting
+                                  ? null
+                                  : (val) => setDialogState(
+                                      () => isConfirmed = val ?? false),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'I understand that once closed, this project cannot be made active again.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.navyDark,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                  isSubmitting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: AppTheme.grayText)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: (!isConfirmed || isSubmitting)
+                      ? null
+                      : () async {
+                    setDialogState(() => isSubmitting = true);
+                    final success = await ref
+                        .read(projectsProvider.notifier)
+                        .toggleProjectStatus(project.id, false);
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+                    }
+                    if (success && mounted) {
+                      ref.invalidate(dashboardStatsProvider);
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Project closed permanently. Historical data remains accessible.'),
+                          backgroundColor: AppTheme.navyDark,
+                        ),
+                      );
+                    } else if (mounted) {
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Failed to close project. Please try again.'),
+                          backgroundColor: AppTheme.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSubmitting
+                      ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2),
+                  )
+                      : const Text('Close Permanently'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: AppTheme.navyDark)),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                  fontSize: 12, color: AppTheme.grayText, height: 1.3),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -161,6 +426,8 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
               .read(projectUsersProvider(widget.project.id).notifier)
               .createUser(name);
           if (user != null && context.mounted) {
+            ref.invalidate(allUsersProvider);
+            ref.invalidate(dashboardStatsProvider);
             Navigator.pop(context);
             _showCodeDialog(context, user);
           }
@@ -193,24 +460,28 @@ class _UsersTab extends ConsumerWidget {
     }
 
     if (usersState.users.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(40),
+          padding: const EdgeInsets.all(40),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.people_outline, size: 56, color: AppTheme.grayBorder),
-              SizedBox(height: 16),
-              Text('No users yet',
+              const Icon(Icons.people_outline,
+                  size: 56, color: AppTheme.grayBorder),
+              const SizedBox(height: 16),
+              const Text('No users yet',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.grayDark)),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
-                  'Tap "Add User" to create a field worker\nand generate their access code.',
+                  project.isActive
+                      ? 'Tap "Add User" to create a field worker\nand generate their access code.'
+                      : 'This project is closed. No new users can be added.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: AppTheme.grayText)),
+                  style:
+                  const TextStyle(fontSize: 13, color: AppTheme.grayText)),
             ],
           ),
         ),
@@ -222,15 +493,46 @@ class _UsersTab extends ConsumerWidget {
           ref.read(projectUsersProvider(project.id).notifier).loadUsers(),
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: usersState.users.length,
+        itemCount: usersState.users.length + (project.isActive ? 0 : 1),
         itemBuilder: (context, index) {
-          final user = usersState.users[index];
+          if (!project.isActive && index == 0) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock_clock_outlined,
+                      size: 18, color: Colors.amber.shade900),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This project is closed (Read-Only). Field access is disabled, but all historical records remain available.',
+                      style:
+                      TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final userIndex = project.isActive ? index : index - 1;
+          final user = usersState.users[userIndex];
           return _UserCard(
             user: user,
-            onToggle: (isActive) {
-              ref
+            isProjectActive: project.isActive,
+            onToggle: (isActive) async {
+              if (!project.isActive) return;
+              await ref
                   .read(projectUsersProvider(project.id).notifier)
                   .toggleUserStatus(user.id, isActive);
+              ref.invalidate(allUsersProvider);
+              ref.invalidate(dashboardStatsProvider);
             },
             onShowCode: () {
               showDialog(
@@ -239,6 +541,7 @@ class _UsersTab extends ConsumerWidget {
               );
             },
             onDelete: () async {
+              if (!project.isActive) return;
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (_) => AlertDialog(
@@ -259,9 +562,11 @@ class _UsersTab extends ConsumerWidget {
                 ),
               );
               if (confirm == true) {
-                ref
+                await ref
                     .read(projectUsersProvider(project.id).notifier)
                     .deleteUser(user.id);
+                ref.invalidate(allUsersProvider);
+                ref.invalidate(dashboardStatsProvider);
               }
             },
           );
@@ -274,12 +579,14 @@ class _UsersTab extends ConsumerWidget {
 // ── User Card ─────────────────────────────────────────────────
 class _UserCard extends StatelessWidget {
   final ProjectUserModel user;
+  final bool isProjectActive;
   final Function(bool) onToggle;
   final VoidCallback onShowCode;
   final VoidCallback onDelete;
 
   const _UserCard({
     required this.user,
+    required this.isProjectActive,
     required this.onToggle,
     required this.onShowCode,
     required this.onDelete,
@@ -361,7 +668,7 @@ class _UserCard extends StatelessWidget {
           Column(
             children: [
               GestureDetector(
-                onTap: () => onToggle(!user.isActive),
+                onTap: isProjectActive ? () => onToggle(!user.isActive) : null,
                 child: Container(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -377,12 +684,14 @@ class _UserCard extends StatelessWidget {
                       )),
                 ),
               ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: onDelete,
-                child: const Icon(Icons.delete_outline,
-                    size: 18, color: AppTheme.grayText),
-              ),
+              if (isProjectActive) ...[
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: onDelete,
+                  child: const Icon(Icons.delete_outline,
+                      size: 18, color: AppTheme.grayText),
+                ),
+              ],
             ],
           ),
         ],
@@ -523,8 +832,6 @@ class _SubmissionCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis),
             ],
-
-            // ── Photo thumbnails ───────────────────────────
             if (submission.imageUrls != null &&
                 submission.imageUrls!.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -550,7 +857,6 @@ class _SubmissionCard extends StatelessWidget {
                 ),
               ),
             ],
-
             const SizedBox(height: 8),
             Row(
               children: [
@@ -682,7 +988,6 @@ class _AddUserSheetState extends State<_AddUserSheet> {
                             .replaceFirst('Exception: ', ''),
                       );
                     }
-                    // Close the form sheet after the dialog is dismissed
                     if (context.mounted) Navigator.pop(context);
                   } finally {
                     if (mounted) setState(() => _loading = false);
