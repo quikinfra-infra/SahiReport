@@ -51,17 +51,14 @@ class CoOwnerRepository {
     }
   }
 
-  Future<void> toggleCoOwnerStatus(String id, bool isActive) async {
+  /// Permanently deactivates a Co-Owner (one-way: sets is_active = false, keeps record in DB)
+  Future<void> deactivateCoOwner(String id) async {
     try {
       await _client
           .from('owner_admins')
-          .update({'is_active': isActive}).eq('id', id);
+          .update({'is_active': false}).eq('id', id);
     } on PostgrestException catch (e) {
       throw Exception(e.message);
     }
-  }
-
-  Future<void> deleteCoOwner(String id) async {
-    await _client.from('owner_admins').delete().eq('id', id);
   }
 }

@@ -78,9 +78,10 @@ class CoOwnersNotifier extends StateNotifier<CoOwnersState> {
     }
   }
 
-  Future<void> toggleStatus(String id, bool isActive) async {
+  /// Permanently deactivates a Co-Owner (cannot be reactivated)
+  Future<void> deactivateCoOwner(String id) async {
     try {
-      await _repo.toggleCoOwnerStatus(id, isActive);
+      await _repo.deactivateCoOwner(id);
       state = state.copyWith(
         coOwners: state.coOwners.map((c) {
           if (c.id == id) {
@@ -89,7 +90,7 @@ class CoOwnersNotifier extends StateNotifier<CoOwnersState> {
               ownerId: c.ownerId,
               name: c.name,
               accessCode: c.accessCode,
-              isActive: isActive,
+              isActive: false,
               lastLoginAt: c.lastLoginAt,
               createdAt: c.createdAt,
             );
@@ -101,17 +102,6 @@ class CoOwnersNotifier extends StateNotifier<CoOwnersState> {
       final msg = e.toString().replaceFirst('Exception: ', '');
       state = state.copyWith(error: msg);
       rethrow;
-    }
-  }
-
-  Future<void> deleteCoOwner(String id) async {
-    try {
-      await _repo.deleteCoOwner(id);
-      state = state.copyWith(
-        coOwners: state.coOwners.where((c) => c.id != id).toList(),
-      );
-    } catch (e) {
-      state = state.copyWith(error: 'Failed to remove co-owner.');
     }
   }
 }

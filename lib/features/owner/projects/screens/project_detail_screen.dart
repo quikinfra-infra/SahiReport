@@ -428,8 +428,11 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
           if (user != null && context.mounted) {
             ref.invalidate(allUsersProvider);
             ref.invalidate(dashboardStatsProvider);
-            Navigator.pop(context);
-            _showCodeDialog(context, user);
+            await ref.read(projectsProvider.notifier).loadProjects();
+            if (context.mounted) {
+              Navigator.pop(context);
+              _showCodeDialog(context, user);
+            }
           }
         },
       ),
@@ -449,6 +452,89 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen>
 class _UsersTab extends ConsumerWidget {
   final ProjectModel project;
   const _UsersTab({required this.project});
+
+  Future<bool> _confirmPermanentUserRemoval(
+      BuildContext context,
+      String userName,
+      ) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.errorLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.warning_amber_rounded,
+                  color: AppTheme.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Remove User Access?',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.navyDark,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.errorLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'You can\'t activate the user again.',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.error,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Removing $userName will permanently revoke their access code (Field User seat) and free up the slot for a new person.\n\nAll past reports and records remain 100% accessible in your database.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.grayDark,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Remove Permanently'),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -526,48 +612,25 @@ class _UsersTab extends ConsumerWidget {
           return _UserCard(
             user: user,
             isProjectActive: project.isActive,
-            onToggle: (isActive) async {
-              if (!project.isActive) return;
+            onRemovePermanently: () async {
+              if (!project.isActive || !user.isActive) return;
+              final confirmed =
+              await _confirmPermanentUserRemoval(context, user.name);
+              if (!confirmed) return;
+
               await ref
                   .read(projectUsersProvider(project.id).notifier)
-                  .toggleUserStatus(user.id, isActive);
+                  .toggleUserStatus(user.id, false);
               ref.invalidate(allUsersProvider);
               ref.invalidate(dashboardStatsProvider);
+              await ref.read(projectsProvider.notifier).loadProjects();
             },
             onShowCode: () {
+              if (!user.isActive) return;
               showDialog(
                 context: context,
                 builder: (_) => _CodeGeneratedDialog(user: user),
               );
-            },
-            onDelete: () async {
-              if (!project.isActive) return;
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Remove user?'),
-                  content: Text(
-                      'Remove ${user.name} from this project? Their past submissions will be kept.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Remove',
-                          style: TextStyle(color: AppTheme.error)),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                await ref
-                    .read(projectUsersProvider(project.id).notifier)
-                    .deleteUser(user.id);
-                ref.invalidate(allUsersProvider);
-                ref.invalidate(dashboardStatsProvider);
-              }
             },
           );
         },
@@ -576,20 +639,18 @@ class _UsersTab extends ConsumerWidget {
   }
 }
 
-// ── User Card ─────────────────────────────────────────────────
+// ── User Card (Two Pills: Active + Remove) ────────────────────
 class _UserCard extends StatelessWidget {
   final ProjectUserModel user;
   final bool isProjectActive;
-  final Function(bool) onToggle;
+  final VoidCallback onRemovePermanently;
   final VoidCallback onShowCode;
-  final VoidCallback onDelete;
 
   const _UserCard({
     required this.user,
     required this.isProjectActive,
-    required this.onToggle,
+    required this.onRemovePermanently,
     required this.onShowCode,
-    required this.onDelete,
   });
 
   @override
@@ -617,12 +678,14 @@ class _UserCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
-              child: Text(initials,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: user.isActive ? AppTheme.success : AppTheme.error,
-                  )),
+              child: Text(
+                initials,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: user.isActive ? AppTheme.success : AppTheme.error,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -630,70 +693,118 @@ class _UserCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.navyDark)),
+                Text(
+                  user.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: user.isActive
+                        ? AppTheme.navyDark
+                        : AppTheme.grayText,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 GestureDetector(
-                  onTap: onShowCode,
+                  onTap: user.isActive ? onShowCode : null,
                   child: Row(
                     children: [
                       Text(
                         user.accessCode.isNotEmpty
                             ? user.accessCode
                             : 'Tap to view code',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontFamily: 'monospace',
-                          color: AppTheme.navyMid,
-                          fontWeight: FontWeight.w500,
+                          color: user.isActive
+                              ? AppTheme.navyMid
+                              : AppTheme.grayText,
+                          fontWeight: FontWeight.w600,
+                          decoration: user.isActive
+                              ? null
+                              : TextDecoration.lineThrough,
                           letterSpacing: 1,
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.copy, size: 12, color: AppTheme.navyMid),
+                      if (user.isActive) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.copy,
+                            size: 12, color: AppTheme.navyMid),
+                      ],
                     ],
                   ),
                 ),
                 if (user.lastLoginAt != null)
                   Text(
-                      'Last login: ${user.lastLoginAt!.day}/${user.lastLoginAt!.month}/${user.lastLoginAt!.year}',
-                      style: const TextStyle(
-                          fontSize: 10, color: AppTheme.grayText)),
+                    'Last login: ${user.lastLoginAt!.day}/${user.lastLoginAt!.month}/${user.lastLoginAt!.year}',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppTheme.grayText),
+                  ),
               ],
             ),
           ),
-          Column(
-            children: [
-              GestureDetector(
-                onTap: isProjectActive ? () => onToggle(!user.isActive) : null,
-                child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: user.isActive
-                      ? AppTheme.activeBadge
-                      : AppTheme.inactiveBadge,
-                  child: Text(user.isActive ? 'Active' : 'Removed',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                        color:
-                        user.isActive ? AppTheme.success : AppTheme.error,
-                      )),
+          if (user.isActive) ...[
+            // Pill 1: Status Pill (Active)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: AppTheme.activeBadge,
+              child: const Text(
+                'Active',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.success,
                 ),
               ),
-              if (isProjectActive) ...[
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: onDelete,
-                  child: const Icon(Icons.delete_outline,
-                      size: 18, color: AppTheme.grayText),
+            ),
+            if (isProjectActive) ...[
+              const SizedBox(width: 8),
+              // Pill 2: Action Pill (Remove)
+              GestureDetector(
+                onTap: onRemovePermanently,
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.errorLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppTheme.error.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.person_remove_outlined,
+                          size: 11, color: AppTheme.error),
+                      SizedBox(width: 4),
+                      Text(
+                        'Remove',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ],
-          ),
+          ] else ...[
+            // Permanently Removed Badge (Locked)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: AppTheme.inactiveBadge,
+              child: const Text(
+                'Removed',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.error,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

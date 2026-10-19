@@ -40,14 +40,104 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     }
   }
 
+  Future<bool> _confirmPermanentUserRemoval(
+      BuildContext context, {
+        required String userName,
+        required bool isCoOwner,
+      }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.errorLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.warning_amber_rounded,
+                  color: AppTheme.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Remove User Access?',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.navyDark,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.errorLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'You can\'t activate the user again.',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.error,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Removing $userName will permanently revoke their access code (${isCoOwner ? "Co-Owner seat" : "Field User seat"}) and free up the slot for a new person.\n\nAll past reports and records remain 100% accessible in your database.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.grayDark,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Remove Permanently'),
+          ),
+        ],
+      ),
+    );
+    return result == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
-    final rawName = authState.owner?.fullName?.trim() ?? '';
-    final ownerName = rawName.isNotEmpty
-        ? rawName
+    final isCoOwner = authState.isCoOwner;
+    final coOwnerName = authState.coOwnerName?.trim() ?? '';
+    final rawPrimaryName = authState.owner?.fullName?.trim() ?? '';
+    final primaryName = rawPrimaryName.isNotEmpty
+        ? rawPrimaryName
         : (authState.owner?.email?.split('@').first ?? 'Owner');
-    final initial = ownerName.isNotEmpty ? ownerName[0].toUpperCase() : 'O';
+
+    final displayName = isCoOwner && coOwnerName.isNotEmpty
+        ? '$coOwnerName (Co-Owner)'
+        : primaryName;
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : 'O';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
@@ -65,7 +155,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => context.push(AppRoutes.profileEdit),
+                      onTap: isCoOwner
+                          ? null
+                          : () => context.push(AppRoutes.profileEdit),
                       behavior: HitTestBehavior.opaque,
                       child: Row(
                         children: [
@@ -93,12 +185,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  ownerName,
+                                  displayName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 16,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
@@ -203,6 +295,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     final statsAsync = ref.watch(dashboardStatsProvider);
     final projectsState = ref.watch(projectsProvider);
     final coOwnersState = ref.watch(coOwnersProvider);
+    final authState = ref.watch(authProvider);
 
     final activeProjects =
         statsAsync.value?['active_projects']?.toString() ?? '0';
@@ -221,7 +314,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       onRefresh: () async {
         ref.invalidate(dashboardStatsProvider);
         ref.invalidate(allUsersProvider);
-        await ref.read(coOwnersProvider.notifier).loadCoOwners();
+        if (!authState.isCoOwner) {
+          await ref.read(coOwnersProvider.notifier).loadCoOwners();
+        }
         await ref.read(projectsProvider.notifier).loadProjects();
       },
       child: SingleChildScrollView(
@@ -230,7 +325,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Equal-height Stat Cards
             IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -269,11 +363,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ── CO-OWNERS / ADMINS SECTION (Above My Projects) ──
-            _buildCoOwnersSection(coOwnersState),
-            const SizedBox(height: 24),
+            if (!authState.isCoOwner) ...[
+              _buildCoOwnersSection(coOwnersState),
+              const SizedBox(height: 24),
+            ],
 
-            // My Projects Header & Filter Chips
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -290,7 +384,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Project List
             _buildProjectsList(projectsState, filteredProjects),
             const SizedBox(height: 80),
           ],
@@ -299,7 +392,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── CO-OWNERS SECTION WIDGET ────────────────────────────────
+  // ── CO-OWNERS SECTION WIDGET (Two Pills: Active + Remove) ──
   Widget _buildCoOwnersSection(CoOwnersState coOwnersState) {
     final activeCount =
         coOwnersState.coOwners.where((c) => c.isActive).length;
@@ -397,105 +490,132 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                         children: [
                           Text(
                             coOwner.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.navyDark,
+                              color: coOwner.isActive
+                                  ? AppTheme.navyDark
+                                  : AppTheme.grayText,
                             ),
                           ),
                           const SizedBox(height: 2),
                           GestureDetector(
-                            onTap: () =>
-                                _showCoOwnerCodeDialog(context, coOwner),
+                            onTap: coOwner.isActive
+                                ? () => _showCoOwnerCodeDialog(context, coOwner)
+                                : null,
                             child: Row(
                               children: [
                                 Text(
                                   coOwner.accessCode,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontFamily: 'monospace',
                                     fontWeight: FontWeight.w600,
-                                    color: AppTheme.navyMid,
+                                    color: coOwner.isActive
+                                        ? AppTheme.navyMid
+                                        : AppTheme.grayText,
+                                    decoration: coOwner.isActive
+                                        ? null
+                                        : TextDecoration.lineThrough,
                                     letterSpacing: 1,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                const Icon(Icons.copy,
-                                    size: 12, color: AppTheme.navyMid),
+                                if (coOwner.isActive) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.copy,
+                                      size: 12, color: AppTheme.navyMid),
+                                ],
                               ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () async {
-                        try {
-                          await ref
-                              .read(coOwnersProvider.notifier)
-                              .toggleStatus(coOwner.id, !coOwner.isActive);
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(e
-                                    .toString()
-                                    .replaceFirst('Exception: ', '')),
-                                backgroundColor: AppTheme.error,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      child: Container(
+                    if (coOwner.isActive) ...[
+                      // Pill 1: Status Pill (Active)
+                      Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: coOwner.isActive
-                            ? AppTheme.activeBadge
-                            : AppTheme.inactiveBadge,
-                        child: Text(
-                          coOwner.isActive ? 'Active' : 'Removed',
+                            horizontal: 8, vertical: 4),
+                        decoration: AppTheme.activeBadge,
+                        child: const Text(
+                          'Active',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: coOwner.isActive
-                                ? AppTheme.success
-                                : AppTheme.error,
+                            color: AppTheme.success,
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Remove Co-Owner?'),
-                            content: Text(
-                                'Revoke dashboard access for ${coOwner.name}?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('Remove',
-                                    style: TextStyle(color: AppTheme.error)),
+                      const SizedBox(width: 8),
+                      // Pill 2: Action Pill (Remove)
+                      GestureDetector(
+                        onTap: () async {
+                          final confirmed = await _confirmPermanentUserRemoval(
+                            context,
+                            userName: coOwner.name,
+                            isCoOwner: true,
+                          );
+                          if (!confirmed) return;
+                          try {
+                            await ref
+                                .read(coOwnersProvider.notifier)
+                                .deactivateCoOwner(coOwner.id);
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(e
+                                      .toString()
+                                      .replaceFirst('Exception: ', '')),
+                                  backgroundColor: AppTheme.error,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.errorLight,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: AppTheme.error.withValues(alpha: 0.3)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.person_remove_outlined,
+                                  size: 11, color: AppTheme.error),
+                              SizedBox(width: 4),
+                              Text(
+                                'Remove',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.error,
+                                ),
                               ),
                             ],
                           ),
-                        );
-                        if (confirm == true) {
-                          await ref
-                              .read(coOwnersProvider.notifier)
-                              .deleteCoOwner(coOwner.id);
-                        }
-                      },
-                      child: const Icon(Icons.delete_outline,
-                          size: 18, color: Color(0xFF7A90B8)),
-                    ),
+                        ),
+                      ),
+                    ] else ...[
+                      // Permanently Removed Badge (Locked)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: AppTheme.inactiveBadge,
+                        child: const Text(
+                          'Removed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -606,7 +726,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── TAB 2: USERS GROUPED BY PROJECT ─────────────────────────
+  // ── TAB 2: USERS GROUPED BY PROJECT (Two Pills: Active + Remove) ──
   Widget _buildUsersTab() {
     final allUsersAsync = ref.watch(allUsersProvider);
     final projectsState = ref.watch(projectsProvider);
@@ -653,7 +773,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             );
           }
 
-          // Group users by projectId
           final Map<String, List<ProjectUserModel>> grouped = {};
           for (final u in users) {
             grouped.putIfAbsent(u.projectId, () => []).add(u);
@@ -672,10 +791,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                   ? firstProjectName
                   : 'Project';
 
-              // Find matching ProjectModel if loaded so owner can tap into it
               final matchingProject = projectsState.projects
                   .where((p) => p.id == projectId)
                   .firstOrNull;
+              final isProjectActive = matchingProject?.isActive ?? true;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -776,15 +895,18 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                 children: [
                                   Text(
                                     user.name,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: AppTheme.navyDark,
+                                      color: user.isActive
+                                          ? AppTheme.navyDark
+                                          : AppTheme.grayText,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   GestureDetector(
-                                    onTap: () {
+                                    onTap: user.isActive
+                                        ? () {
                                       Clipboard.setData(ClipboardData(
                                           text: user.accessCode));
                                       ScaffoldMessenger.of(context)
@@ -792,50 +914,127 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                         SnackBar(
                                           content: Text(
                                               'Copied code for ${user.name}'),
-                                          backgroundColor: AppTheme.success,
-                                          duration:
-                                          const Duration(seconds: 2),
+                                          backgroundColor:
+                                          AppTheme.success,
+                                          duration: const Duration(
+                                              seconds: 2),
                                         ),
                                       );
-                                    },
+                                    }
+                                        : null,
                                     child: Row(
                                       children: [
                                         Text(
                                           user.accessCode,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
                                             fontFamily: 'monospace',
-                                            color: AppTheme.navyMid,
+                                            color: user.isActive
+                                                ? AppTheme.navyMid
+                                                : AppTheme.grayText,
                                             fontWeight: FontWeight.w600,
+                                            decoration: user.isActive
+                                                ? null
+                                                : TextDecoration.lineThrough,
                                             letterSpacing: 1,
                                           ),
                                         ),
-                                        const SizedBox(width: 4),
-                                        const Icon(Icons.copy,
-                                            size: 12, color: AppTheme.navyMid),
+                                        if (user.isActive) ...[
+                                          const SizedBox(width: 4),
+                                          const Icon(Icons.copy,
+                                              size: 12,
+                                              color: AppTheme.navyMid),
+                                        ],
                                       ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: user.isActive
-                                  ? AppTheme.activeBadge
-                                  : AppTheme.inactiveBadge,
-                              child: Text(
-                                user.isActive ? 'Active' : 'Removed',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: user.isActive
-                                      ? AppTheme.success
-                                      : AppTheme.error,
+                            if (user.isActive) ...[
+                              // Pill 1: Status Pill (Active)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: AppTheme.activeBadge,
+                                child: const Text(
+                                  'Active',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.success,
+                                  ),
                                 ),
                               ),
-                            ),
+                              if (isProjectActive) ...[
+                                const SizedBox(width: 8),
+                                // Pill 2: Action Pill (Remove)
+                                GestureDetector(
+                                  onTap: () async {
+                                    final confirmed =
+                                    await _confirmPermanentUserRemoval(
+                                      context,
+                                      userName: user.name,
+                                      isCoOwner: false,
+                                    );
+                                    if (!confirmed) return;
+                                    await ref
+                                        .read(projectUsersProvider(
+                                        user.projectId)
+                                        .notifier)
+                                        .toggleUserStatus(user.id, false);
+                                    ref.invalidate(allUsersProvider);
+                                    ref.invalidate(dashboardStatsProvider);
+                                    await ref
+                                        .read(projectsProvider.notifier)
+                                        .loadProjects();
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.errorLight,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: AppTheme.error
+                                            .withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.person_remove_outlined,
+                                            size: 11, color: AppTheme.error),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Remove',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.error,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ] else ...[
+                              // Permanently Removed Badge (Locked)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: AppTheme.inactiveBadge,
+                                child: const Text(
+                                  'Removed',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.error,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       );
@@ -853,14 +1052,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   // ── TAB 3: SETTINGS & LEGAL DOCS ────────────────────────────
   Widget _buildSettingsTab() {
     final owner = ref.watch(authProvider).owner;
-    final fullName = owner?.fullName ?? '';
+    final authState = ref.watch(authProvider);
+    final fullName = authState.isCoOwner
+        ? (authState.coOwnerName ?? 'Co-Owner')
+        : (owner?.fullName ?? '');
     final avatarLetter =
     fullName.isNotEmpty ? fullName[0].toUpperCase() : 'O';
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Account Summary Card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -896,46 +1097,51 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      owner?.email ?? '',
+                      authState.isCoOwner
+                          ? 'Co-Owner Access'
+                          : (owner?.email ?? ''),
                       style: const TextStyle(
                           fontSize: 12, color: Color(0xFF7A90B8)),
                     ),
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: () => context.push(AppRoutes.profileEdit),
-                child: const Text('Edit'),
-              ),
+              if (!authState.isCoOwner)
+                TextButton(
+                  onPressed: () => context.push(AppRoutes.profileEdit),
+                  child: const Text('Edit'),
+                ),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
-        const Text(
-          'SUBSCRIPTION & ACCOUNT',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF7A90B8),
-            letterSpacing: 1,
+        if (!authState.isCoOwner) ...[
+          const Text(
+            'SUBSCRIPTION & ACCOUNT',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF7A90B8),
+              letterSpacing: 1,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        _buildSettingsTile(
-          icon: Icons.workspace_premium_outlined,
-          title: 'Add Pro Project Slots',
-          subtitle: '2 active projects free · Purchase extra yearly slots',
-          onTap: () => context.push(AppRoutes.billing),
-        ),
-        _buildSettingsTile(
-          icon: Icons.person_outline,
-          title: 'Profile & Account Settings',
-          subtitle: 'Update name, company details, or password',
-          onTap: () => context.push(AppRoutes.profileEdit),
-        ),
+          const SizedBox(height: 8),
+          _buildSettingsTile(
+            icon: Icons.workspace_premium_outlined,
+            title: 'Add Pro Project Slots',
+            subtitle: '2 active projects free · Purchase extra yearly slots',
+            onTap: () => context.push(AppRoutes.billing),
+          ),
+          _buildSettingsTile(
+            icon: Icons.person_outline,
+            title: 'Profile & Account Settings',
+            subtitle: 'Update name, company details, or password',
+            onTap: () => context.push(AppRoutes.profileEdit),
+          ),
+          const SizedBox(height: 20),
+        ],
 
-        const SizedBox(height: 20),
         const Text(
           'LEGAL & INFORMATION',
           style: TextStyle(
@@ -975,7 +1181,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 '2. Location & Camera Usage\n'
                 'Location coordinates and timestamps are captured strictly at the time of report submission to verify site authenticity.\n\n'
                 '3. Data Ownership & Retention\n'
-                'All project data, photos, and reports belong solely to the Project Owner. Closed projects remain archived in read-only mode so your historical records and exports remain accessible.\n\n'
+                'All project data, photos, and reports belong solely to the Project Owner. Closed projects and removed users\' historical submissions remain archived in read-only mode so your records and exports remain accessible.\n\n'
                 '4. Security\n'
                 'All data is encrypted in transit and at rest. We never sell your project or personal data to third parties.',
           ),
@@ -992,8 +1198,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 'Every owner receives 2 active Free Tier projects with up to 5 active field user seats per project and up to 5 account Co-Owner seats. Additional active projects require an annual Pro Project slot.\n\n'
                 '2. Closing Projects & Slot Reuse\n'
                 'Closing a project permanently locks it in Read-Only mode (preventing new field submissions while preserving full historical export access) and immediately frees up the active project slot for reuse during your active subscription year.\n\n'
-                '3. Acceptable Use\n'
-                'Account owners are responsible for managing field user and co-owner access codes and revoking access when personnel leave.',
+                '3. Removing Users\n'
+                'Removing a field user or co-owner permanently deactivates their access code and frees up their seat while preserving all historical submissions.',
           ),
         ),
 
