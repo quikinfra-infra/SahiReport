@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_constants.dart';
+import '../../../../core/services/export_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/upgrade_dialog.dart';
 import '../../../../models/project_model.dart';
 import '../../../../models/project_user_model.dart';
 import '../../../../models/submission_model.dart';
+import '../../../../providers/auth_provider.dart';
 import '../../../../providers/project_provider.dart';
 import '../../../../providers/project_user_provider.dart';
 import '../../../../providers/submission_provider.dart';
@@ -811,7 +813,7 @@ class _UserCard extends StatelessWidget {
   }
 }
 
-// ── Submissions Tab ───────────────────────────────────────────
+// ── Submissions Tab (With PDF Export Action Bar) ──────────────
 class _SubmissionsTab extends ConsumerWidget {
   final ProjectModel project;
   const _SubmissionsTab({required this.project});
@@ -856,15 +858,74 @@ class _SubmissionsTab extends ConsumerWidget {
         return RefreshIndicator(
           onRefresh: () async =>
               ref.invalidate(submissionsProvider(project.id)),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: submissions.length,
-            itemBuilder: (context, index) {
-              return _SubmissionCard(
-                submission: submissions[index],
-                project: project,
-              );
-            },
+          child: Column(
+            children: [
+              // ── Export Official DPR (PDF) Action Bar ──
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Preparing Official DPR PDF Report...'),
+                        backgroundColor: AppTheme.navyDark,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    try {
+                      final owner = ref.read(authProvider).owner;
+                      await PdfExportService.exportProjectReport(
+                        project: project,
+                        submissions: submissions,
+                        owner: owner,
+                      );
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'Failed to export PDF: ${e.toString().replaceFirst("Exception: ", "")}'),
+                            backgroundColor: AppTheme.error,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.navyDark,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined,
+                      size: 18, color: Colors.white),
+                  label: const Text(
+                    'Export Official DPR (PDF)',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: submissions.length,
+                  itemBuilder: (context, index) {
+                    return _SubmissionCard(
+                      submission: submissions[index],
+                      project: project,
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         );
       },

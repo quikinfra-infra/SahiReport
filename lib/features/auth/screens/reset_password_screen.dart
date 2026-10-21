@@ -1,24 +1,10 @@
 // lib/features/auth/screens/reset_password_screen.dart
-//
-// Landing screen once a recovery session exists. The router forces
-// navigation here whenever AuthSessionState.passwordRecovery is true
-// (see app_router.dart's redirect + auth_provider.dart's
-// passwordRecoveryStream listener). In practice that session is
-// established by verifying the 6-digit code on the forgot-password
-// screen — Supabase fires the same AuthChangeEvent.passwordRecovery
-// either way, so this screen doesn't need to know or care how the
-// user got here.
-//
-// Uses the same rootNavigatorKey + deferred-dialog pattern as the
-// login screen's error dialog (§8.2 in the handoff): once
-// updatePassword() succeeds we deliberately do NOT clear
-// passwordRecovery yet (see completePasswordReset below), so this
-// screen stays mounted long enough to show the confirmation dialog
-// before the router redirects away.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/utils/validators.dart';
 import '../../../providers/auth_provider.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
@@ -31,217 +17,268 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
 
 class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _passCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  bool _obscure = true;
+
+  bool _obscurePass = true;
+  bool _obscureConfirm = true;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
-    _passCtrl.dispose();
+    _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _updatePassword() async {
     if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _errorMsg = null);
 
     final error = await ref
         .read(authProvider.notifier)
-        .updatePassword(_passCtrl.text);
+        .updatePassword(_passwordCtrl.text);
 
-    // Same deferral as the login screen's error dialog — give any
-    // in-flight rebuild from the isLoading flip a moment to settle
-    // before opening a dialog from the global navigator key.
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (error != null) {
-        _showInfoDialog(
-          icon: Icons.error_outline_rounded,
-          iconColor: AppTheme.error,
-          title: "Couldn't update password",
-          message: error,
-          buttonLabel: 'Try again',
-        );
-      } else {
-        _showInfoDialog(
-          icon: Icons.check_circle_outline_rounded,
-          iconColor: AppTheme.success,
-          title: 'Password updated',
-          message: 'Your password has been changed. Sign in with your new '
-              'password to continue.',
-          buttonLabel: 'Continue to login',
-          onConfirm: () =>
-              ref.read(authProvider.notifier).completePasswordReset(),
-        );
-      }
-    });
+    if (!mounted) return;
+
+    if (error != null) {
+      setState(() => _errorMsg = error);
+      return;
+    }
+
+    await ref.read(authProvider.notifier).completePasswordReset();
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Password updated! Please sign in with your new password.'),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+    context.go(AppRoutes.ownerLogin);
   }
 
-  void _showInfoDialog({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String message,
-    required String buttonLabel,
-    VoidCallback? onConfirm,
-  }) {
-    final ctx = rootNavigatorKey.currentContext;
-    if (ctx == null) return;
-    showDialog(
-      context: ctx,
-      useRootNavigator: true,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 22),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: iconColor, size: 28),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppTheme.textPrimary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppTheme.grayText,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    onConfirm?.call();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.navyDark,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    buttonLabel,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+  Widget _buildPasswordRuleItem(String label, bool isMet) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            isMet ? Icons.check_circle : Icons.radio_button_unchecked,
+            size: 14,
+            color: isMet ? AppTheme.success : const Color(0xFF7A90B8),
           ),
-        ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              color: isMet ? AppTheme.success : const Color(0xFF7A90B8),
+              fontWeight: isMet ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+    final isLoading = ref.watch(authProvider.select((s) => s.isLoading));
+    final currentPass = _passwordCtrl.text;
 
     return Scaffold(
-      backgroundColor: AppTheme.navyDark,
-      // No back button — the only way out of recovery should be
-      // completing it or the router redirecting away, not the user
-      // backing out into a half-finished state.
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      backgroundColor: const Color(0xFFF4F6F9),
+      appBar: AppBar(
+        backgroundColor: AppTheme.navyDark,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Set New Password',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          padding: const EdgeInsets.all(24),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Set a new password',
+                  'Create a New Password',
                   style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                    color: AppTheme.navyDark,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Choose a new password for your account.',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF7A90B8)),
-                ),
-                const SizedBox(height: 36),
-
-                _buildLabel('New password'),
                 const SizedBox(height: 6),
-                TextFormField(
-                  controller: _passCtrl,
-                  obscureText: _obscure,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('••••••••').copyWith(
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility_off : Icons.visibility,
-                        color: const Color(0xFF7A90B8),
-                        size: 20,
+                const Text(
+                  'Choose a strong password that meets all security requirements below.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF7A90B8),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (_errorMsg != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorLight,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppTheme.error.withValues(alpha: 0.3),
                       ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                    child: Text(
+                      _errorMsg!,
+                      style: const TextStyle(
+                        color: AppTheme.error,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                  validator: (v) =>
-                  v == null || v.length < 6 ? 'Password too short' : null,
+                  const SizedBox(height: 20),
+                ],
+                const Text(
+                  'New Password *',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.navyDark,
+                  ),
                 ),
-                const SizedBox(height: 20),
-
-                _buildLabel('Confirm new password'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _passwordCtrl,
+                  obscureText: _obscurePass,
+                  decoration: InputDecoration(
+                    hintText: 'Enter new password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    filled: true,
+                    fillColor: Colors.white,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePass
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePass = !_obscurePass),
+                    ),
+                  ),
+                  validator: AppValidators.validateStrictPassword,
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Password Requirements:',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.navyDark,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      _buildPasswordRuleItem(
+                        'At least 8 characters',
+                        AppValidators.hasMinLength(currentPass),
+                      ),
+                      _buildPasswordRuleItem(
+                        'One uppercase letter (A-Z)',
+                        AppValidators.hasUppercase(currentPass),
+                      ),
+                      _buildPasswordRuleItem(
+                        'One lowercase letter (a-z)',
+                        AppValidators.hasLowercase(currentPass),
+                      ),
+                      _buildPasswordRuleItem(
+                        'One number (0-9)',
+                        AppValidators.hasDigit(currentPass),
+                      ),
+                      _buildPasswordRuleItem(
+                        'One special character (!@#\$%^&*)',
+                        AppValidators.hasSpecialChar(currentPass),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Confirm New Password *',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.navyDark,
+                  ),
+                ),
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _confirmCtrl,
-                  obscureText: _obscure,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('••••••••'),
-                  validator: (v) => v != _passCtrl.text
-                      ? 'Passwords don\'t match'
-                      : null,
+                  obscureText: _obscureConfirm,
+                  decoration: InputDecoration(
+                    hintText: 'Re-enter new password',
+                    prefixIcon: const Icon(Icons.lock_reset_outlined),
+                    filled: true,
+                    fillColor: Colors.white,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscureConfirm
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
+                  ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) {
+                      return 'Please confirm your new password';
+                    }
+                    if (v != _passwordCtrl.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
                 ),
-                const SizedBox(height: 36),
-
+                const SizedBox(height: 28),
                 SizedBox(
                   width: double.infinity,
-                  height: 52,
+                  height: 50,
                   child: ElevatedButton(
-                    onPressed: authState.isLoading ? null : _submit,
+                    onPressed: isLoading ? null : _updatePassword,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.navyMid,
+                      backgroundColor: AppTheme.navyDark,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: authState.isLoading
+                    child: isLoading
                         ? const SizedBox(
                       width: 20,
                       height: 20,
@@ -251,11 +288,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                       ),
                     )
                         : const Text(
-                      'Reset password',
+                      'Update Password',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -267,39 +303,4 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       ),
     );
   }
-
-  Widget _buildLabel(String text) => Text(
-    text,
-    style: const TextStyle(
-      fontSize: 13,
-      fontWeight: FontWeight.w500,
-      color: Color(0xFF7A90B8),
-    ),
-  );
-
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: Color(0xFF4A5A7A)),
-    filled: true,
-    fillColor: const Color(0xFF1E3A6E),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: BorderSide.none,
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppTheme.navyAccent, width: 1.5),
-    ),
-    errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppTheme.error),
-    ),
-    focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppTheme.error),
-    ),
-    errorStyle: const TextStyle(color: AppTheme.error),
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  );
 }

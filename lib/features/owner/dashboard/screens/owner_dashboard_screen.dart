@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/widgets/ad_banner_widget.dart';
 import '../../../../core/widgets/upgrade_dialog.dart';
 import '../../../../providers/auth_provider.dart';
 import '../../../../providers/co_owner_provider.dart';
@@ -57,8 +58,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 color: AppTheme.errorLight,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.warning_amber_rounded,
-                  color: AppTheme.error, size: 22),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: AppTheme.error,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -128,11 +132,14 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final isCoOwner = authState.isCoOwner;
+    final owner = authState.owner;
     final coOwnerName = authState.coOwnerName?.trim() ?? '';
-    final rawPrimaryName = authState.owner?.fullName?.trim() ?? '';
+    final rawPrimaryName = owner?.fullName?.trim() ?? '';
     final primaryName = rawPrimaryName.isNotEmpty
         ? rawPrimaryName
-        : (authState.owner?.email?.split('@').first ?? 'Owner');
+        : (owner?.email != null && owner!.email.isNotEmpty
+        ? owner.email.split('@').first
+        : 'Owner');
 
     final displayName = isCoOwner && coOwnerName.isNotEmpty
         ? '$coOwnerName (Co-Owner)'
@@ -224,11 +231,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       elevation: 0,
                     ),
-                    icon: const Icon(Icons.logout,
-                        size: 15, color: Color(0xFF8BA3CB)),
+                    icon: const Icon(
+                      Icons.logout,
+                      size: 15,
+                      color: Color(0xFF8BA3CB),
+                    ),
                     label: const Text(
                       'Logout',
                       style: TextStyle(
@@ -260,37 +272,53 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text(
           'New Project',
-          style:
-          TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       )
           : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-          if (index == 2) {
-            ref.invalidate(allUsersProvider);
-          }
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: AppTheme.navyDark,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: const Color(0xFF7A90B8),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.folder_outlined), label: 'Projects'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline), label: 'Users'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined), label: 'Settings'),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AdBannerWidget(),
+          BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() => _currentIndex = index);
+              if (index == 2) {
+                ref.invalidate(allUsersProvider);
+              }
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: AppTheme.navyDark,
+            selectedItemColor: Colors.white,
+            unselectedItemColor: const Color(0xFF7A90B8),
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_filled),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.folder_outlined),
+                label: 'Projects',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                label: 'Users',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings_outlined),
+                label: 'Settings',
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  // ── TAB 0: HOME DASHBOARD ───────────────────────────────────
   Widget _buildHomeTab() {
     final statsAsync = ref.watch(dashboardStatsProvider);
     final projectsState = ref.watch(projectsProvider);
@@ -362,12 +390,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             if (!authState.isCoOwner) ...[
               _buildCoOwnersSection(coOwnersState),
               const SizedBox(height: 24),
             ],
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -383,7 +409,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
             _buildProjectsList(projectsState, filteredProjects),
             const SizedBox(height: 80),
           ],
@@ -392,7 +417,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── CO-OWNERS SECTION WIDGET (Two Pills: Active + Remove) ──
   Widget _buildCoOwnersSection(CoOwnersState coOwnersState) {
     final activeCount =
         coOwnersState.coOwners.where((c) => c.isActive).length;
@@ -419,8 +443,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                       color: const Color(0xFFF4F6F9),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.admin_panel_settings_outlined,
-                        color: AppTheme.navyDark, size: 20),
+                    child: const Icon(
+                      Icons.admin_panel_settings_outlined,
+                      color: AppTheme.navyDark,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Column(
@@ -455,15 +482,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(0, 36),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   elevation: 0,
                 ),
-                icon: const Icon(Icons.person_add_alt_1_outlined,
-                    size: 15, color: Colors.white),
+                icon: const Icon(
+                  Icons.person_add_alt_1_outlined,
+                  size: 15,
+                  color: Colors.white,
+                ),
                 label: const Text(
                   'Add Co-Owner',
                   style: TextStyle(
@@ -522,8 +554,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                 ),
                                 if (coOwner.isActive) ...[
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.copy,
-                                      size: 12, color: AppTheme.navyMid),
+                                  const Icon(
+                                    Icons.copy,
+                                    size: 12,
+                                    color: AppTheme.navyMid,
+                                  ),
                                 ],
                               ],
                             ),
@@ -532,10 +567,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                       ),
                     ),
                     if (coOwner.isActive) ...[
-                      // Pill 1: Status Pill (Active)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: AppTheme.activeBadge,
                         child: const Text(
                           'Active',
@@ -547,7 +583,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Pill 2: Action Pill (Remove)
                       GestureDetector(
                         onTap: () async {
                           final confirmed = await _confirmPermanentUserRemoval(
@@ -564,9 +599,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(e
-                                      .toString()
-                                      .replaceFirst('Exception: ', '')),
+                                  content: Text(
+                                    e
+                                        .toString()
+                                        .replaceFirst('Exception: ', ''),
+                                  ),
                                   backgroundColor: AppTheme.error,
                                 ),
                               );
@@ -575,18 +612,24 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppTheme.errorLight,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppTheme.error.withValues(alpha: 0.3)),
+                              color: AppTheme.error.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.person_remove_outlined,
-                                  size: 11, color: AppTheme.error),
+                              Icon(
+                                Icons.person_remove_outlined,
+                                size: 11,
+                                color: AppTheme.error,
+                              ),
                               SizedBox(width: 4),
                               Text(
                                 'Remove',
@@ -601,10 +644,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                         ),
                       ),
                     ] else ...[
-                      // Permanently Removed Badge (Locked)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: AppTheme.inactiveBadge,
                         child: const Text(
                           'Removed',
@@ -654,7 +698,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── TAB 1: PROJECTS DIRECTORY ───────────────────────────────
   Widget _buildProjectsTab() {
     final projectsState = ref.watch(projectsProvider);
 
@@ -668,15 +711,16 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     if (_projectSearchQuery.trim().isNotEmpty) {
       final q = _projectSearchQuery.trim().toLowerCase();
       filteredProjects = filteredProjects
-          .where((p) =>
-      p.name.toLowerCase().contains(q) ||
-          (p.description?.toLowerCase().contains(q) ?? false))
+          .where(
+            (p) =>
+        p.name.toLowerCase().contains(q) ||
+            (p.description?.toLowerCase().contains(q) ?? false),
+      )
           .toList();
     }
 
     return RefreshIndicator(
-      onRefresh: () async =>
-          ref.read(projectsProvider.notifier).loadProjects(),
+      onRefresh: () async => ref.read(projectsProvider.notifier).loadProjects(),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
@@ -690,8 +734,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 prefixIcon: const Icon(Icons.search, color: Color(0xFF7A90B8)),
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey.shade200),
@@ -726,7 +772,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── TAB 2: USERS GROUPED BY PROJECT (Two Pills: Active + Remove) ──
   Widget _buildUsersTab() {
     final allUsersAsync = ref.watch(allUsersProvider);
     final projectsState = ref.watch(projectsProvider);
@@ -741,8 +786,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           child: CircularProgressIndicator(color: AppTheme.navyDark),
         ),
         error: (e, _) => Center(
-          child: Text('Failed to load users: $e',
-              style: const TextStyle(color: AppTheme.error)),
+          child: Text(
+            'Failed to load users: $e',
+            style: const TextStyle(color: AppTheme.error),
+          ),
         ),
         data: (users) {
           if (users.isEmpty) {
@@ -751,8 +798,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               padding: const EdgeInsets.all(40),
               children: const [
                 SizedBox(height: 60),
-                Icon(Icons.people_outline,
-                    size: 56, color: Color(0xFFCBD5E1)),
+                Icon(Icons.people_outline, size: 56, color: Color(0xFFCBD5E1)),
                 SizedBox(height: 16),
                 Text(
                   'No field users yet',
@@ -786,8 +832,8 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               final projectId = grouped.keys.elementAt(index);
               final projectUsers = grouped[projectId]!;
               final firstProjectName = projectUsers.first.projectName;
-              final projectName = (firstProjectName != null &&
-                  firstProjectName.isNotEmpty)
+              final projectName =
+              (firstProjectName != null && firstProjectName.isNotEmpty)
                   ? firstProjectName
                   : 'Project';
 
@@ -806,29 +852,37 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Project Group Header
                     InkWell(
                       borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12)),
+                        top: Radius.circular(12),
+                      ),
                       onTap: matchingProject != null
                           ? () => context.push(
-                          '/owner/project/${matchingProject.id}',
-                          extra: matchingProject)
+                        '/owner/project/${matchingProject.id}',
+                        extra: matchingProject,
+                      )
                           : null,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12)),
+                            top: Radius.circular(12),
+                          ),
                           border: Border(
-                              bottom: BorderSide(color: Colors.grey.shade200)),
+                            bottom: BorderSide(color: Colors.grey.shade200),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.folder_outlined,
-                                size: 18, color: AppTheme.navyDark),
+                            const Icon(
+                              Icons.folder_outlined,
+                              size: 18,
+                              color: AppTheme.navyDark,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -850,21 +904,25 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                             ),
                             if (matchingProject != null) ...[
                               const SizedBox(width: 4),
-                              const Icon(Icons.chevron_right,
-                                  size: 18, color: Color(0xFF7A90B8)),
+                              const Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: Color(0xFF7A90B8),
+                              ),
                             ],
                           ],
                         ),
                       ),
                     ),
-                    // Users inside this project
                     ...projectUsers.map((user) {
                       final initials = user.name.length >= 2
                           ? user.name.substring(0, 2).toUpperCase()
                           : user.name.toUpperCase();
                       return Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         child: Row(
                           children: [
                             Container(
@@ -907,17 +965,22 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   GestureDetector(
                                     onTap: user.isActive
                                         ? () {
-                                      Clipboard.setData(ClipboardData(
-                                          text: user.accessCode));
+                                      Clipboard.setData(
+                                        ClipboardData(
+                                          text: user.accessCode,
+                                        ),
+                                      );
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                              'Copied code for ${user.name}'),
+                                            'Copied code for ${user.name}',
+                                          ),
                                           backgroundColor:
                                           AppTheme.success,
                                           duration: const Duration(
-                                              seconds: 2),
+                                            seconds: 2,
+                                          ),
                                         ),
                                       );
                                     }
@@ -941,9 +1004,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                         ),
                                         if (user.isActive) ...[
                                           const SizedBox(width: 4),
-                                          const Icon(Icons.copy,
-                                              size: 12,
-                                              color: AppTheme.navyMid),
+                                          const Icon(
+                                            Icons.copy,
+                                            size: 12,
+                                            color: AppTheme.navyMid,
+                                          ),
                                         ],
                                       ],
                                     ),
@@ -952,10 +1017,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               ),
                             ),
                             if (user.isActive) ...[
-                              // Pill 1: Status Pill (Active)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: AppTheme.activeBadge,
                                 child: const Text(
                                   'Active',
@@ -968,7 +1034,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                               ),
                               if (isProjectActive) ...[
                                 const SizedBox(width: 8),
-                                // Pill 2: Action Pill (Remove)
                                 GestureDetector(
                                   onTap: () async {
                                     final confirmed =
@@ -979,9 +1044,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                     );
                                     if (!confirmed) return;
                                     await ref
-                                        .read(projectUsersProvider(
-                                        user.projectId)
-                                        .notifier)
+                                        .read(
+                                      projectUsersProvider(user.projectId)
+                                          .notifier,
+                                    )
                                         .toggleUserStatus(user.id, false);
                                     ref.invalidate(allUsersProvider);
                                     ref.invalidate(dashboardStatsProvider);
@@ -991,20 +1057,26 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                   },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppTheme.errorLight,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: AppTheme.error
-                                            .withValues(alpha: 0.3),
+                                        color: AppTheme.error.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                     ),
                                     child: const Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(Icons.person_remove_outlined,
-                                            size: 11, color: AppTheme.error),
+                                        Icon(
+                                          Icons.person_remove_outlined,
+                                          size: 11,
+                                          color: AppTheme.error,
+                                        ),
                                         SizedBox(width: 4),
                                         Text(
                                           'Remove',
@@ -1020,10 +1092,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                                 ),
                               ],
                             ] else ...[
-                              // Permanently Removed Badge (Locked)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: AppTheme.inactiveBadge,
                                 child: const Text(
                                   'Removed',
@@ -1049,15 +1122,13 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── TAB 3: SETTINGS & LEGAL DOCS ────────────────────────────
   Widget _buildSettingsTab() {
-    final owner = ref.watch(authProvider).owner;
     final authState = ref.watch(authProvider);
+    final owner = authState.owner;
     final fullName = authState.isCoOwner
         ? (authState.coOwnerName ?? 'Co-Owner')
         : (owner?.fullName ?? '');
-    final avatarLetter =
-    fullName.isNotEmpty ? fullName[0].toUpperCase() : 'O';
+    final avatarLetter = fullName.isNotEmpty ? fullName[0].toUpperCase() : 'O';
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1077,9 +1148,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 child: Text(
                   avatarLetter,
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -1101,7 +1173,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                           ? 'Co-Owner Access'
                           : (owner?.email ?? ''),
                       style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF7A90B8)),
+                        fontSize: 12,
+                        color: Color(0xFF7A90B8),
+                      ),
                     ),
                   ],
                 ),
@@ -1115,7 +1189,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           ),
         ),
         const SizedBox(height: 20),
-
         if (!authState.isCoOwner) ...[
           const Text(
             'SUBSCRIPTION & ACCOUNT',
@@ -1141,7 +1214,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           ),
           const SizedBox(height: 20),
         ],
-
         const Text(
           'LEGAL & INFORMATION',
           style: TextStyle(
@@ -1202,7 +1274,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 'Removing a field user or co-owner permanently deactivates their access code and frees up their seat while preserving all historical submissions.',
           ),
         ),
-
         const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
@@ -1213,11 +1284,14 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               foregroundColor: AppTheme.error,
               side: const BorderSide(color: AppTheme.error),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             icon: const Icon(Icons.logout, size: 18),
-            label: const Text('Logout',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            label: const Text(
+              'Logout',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ),
         const SizedBox(height: 40),
@@ -1260,14 +1334,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
           subtitle,
           style: const TextStyle(fontSize: 12, color: Color(0xFF7A90B8)),
         ),
-        trailing: const Icon(Icons.chevron_right,
-            color: Color(0xFF7A90B8), size: 20),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Color(0xFF7A90B8),
+          size: 20,
+        ),
       ),
     );
   }
 
-  void _showLegalDocSheet(BuildContext context,
-      {required String title, required String content}) {
+  void _showLegalDocSheet(
+      BuildContext context, {
+        required String title,
+        required String content,
+      }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1324,7 +1404,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  // ── SHARED HELPERS ──────────────────────────────────────────
   Widget _buildFilterChips() {
     return Row(
       children: ['All', 'Active', 'Closed'].map((filter) {
@@ -1356,7 +1435,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   }
 
   Widget _buildProjectsList(
-      ProjectsState projectsState, List<ProjectModel> filteredProjects) {
+      ProjectsState projectsState,
+      List<ProjectModel> filteredProjects,
+      ) {
     if (projectsState.isLoading) {
       return const Center(
         child: Padding(
@@ -1368,9 +1449,11 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     if (projectsState.error != null && projectsState.projects.isEmpty) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Text(projectsState.error!,
-              style: const TextStyle(color: Colors.red)),
+          padding: const EdgeInsets.all(32.0),
+          child: Text(
+            projectsState.error!,
+            style: const TextStyle(color: Colors.red),
+          ),
         ),
       );
     }
@@ -1378,8 +1461,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32.0),
-          child: Text('No projects found.',
-              style: TextStyle(color: Color(0xFF7A90B8))),
+          child: Text(
+            'No projects found.',
+            style: TextStyle(color: Color(0xFF7A90B8)),
+          ),
         ),
       );
     }
@@ -1417,8 +1502,13 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(IconData icon, String count, String label,
-      {bool isZero = false, VoidCallback? onTap}) {
+  Widget _buildStatCard(
+      IconData icon,
+      String count,
+      String label, {
+        bool isZero = false,
+        VoidCallback? onTap,
+      }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1446,7 +1536,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             Text(
               label,
               style: const TextStyle(
-                  fontSize: 12, color: Color(0xFF7A90B8), height: 1.3),
+                fontSize: 12,
+                color: Color(0xFF7A90B8),
+                height: 1.3,
+              ),
             ),
           ],
         ),
@@ -1459,7 +1552,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     final isPro = project.isPro;
     final tier = isPro ? 'Pro' : 'Free Tier';
     final status = project.isActive ? 'Active' : 'Closed';
-    final users = '${project.userCount ?? 0} users';
+    final users = '${project.userCount} users';
     final submissions = '${project.submissionCount ?? 0} submissions';
 
     return GestureDetector(
@@ -1485,9 +1578,10 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.navyDark),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.navyDark,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1495,7 +1589,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color:
                         isPro ? Colors.blue.shade50 : Colors.grey.shade100,
@@ -1504,17 +1600,20 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                       child: Text(
                         tier,
                         style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: isPro
-                                ? Colors.blue.shade700
-                                : const Color(0xFF7A90B8)),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isPro
+                              ? Colors.blue.shade700
+                              : const Color(0xFF7A90B8),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: project.isActive
                             ? Colors.green.shade50
@@ -1524,11 +1623,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                       child: Text(
                         status,
                         style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: project.isActive
-                                ? Colors.green.shade700
-                                : Colors.grey.shade700),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: project.isActive
+                              ? Colors.green.shade700
+                              : Colors.grey.shade700,
+                        ),
                       ),
                     ),
                   ],
@@ -1541,23 +1641,40 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.people_outline,
-                        size: 14, color: Color(0xFF7A90B8)),
+                    const Icon(
+                      Icons.people_outline,
+                      size: 14,
+                      color: Color(0xFF7A90B8),
+                    ),
                     const SizedBox(width: 4),
-                    Text(users,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF7A90B8))),
+                    Text(
+                      users,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF7A90B8),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    const Icon(Icons.assignment_outlined,
-                        size: 14, color: Color(0xFF7A90B8)),
+                    const Icon(
+                      Icons.assignment_outlined,
+                      size: 14,
+                      color: Color(0xFF7A90B8),
+                    ),
                     const SizedBox(width: 4),
-                    Text(submissions,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF7A90B8))),
+                    Text(
+                      submissions,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF7A90B8),
+                      ),
+                    ),
                   ],
                 ),
-                const Icon(Icons.chevron_right,
-                    color: Color(0xFF7A90B8), size: 20),
+                const Icon(
+                  Icons.chevron_right,
+                  color: Color(0xFF7A90B8),
+                  size: 20,
+                ),
               ],
             ),
           ],
@@ -1567,7 +1684,6 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   }
 }
 
-// ── Add Co-Owner Bottom Sheet ─────────────────────────────────
 class _AddCoOwnerSheet extends StatefulWidget {
   final Future<void> Function(String name) onAdd;
   const _AddCoOwnerSheet({required this.onAdd});
@@ -1625,7 +1741,10 @@ class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
             const Text(
               'Generates a unique access code that grants full dashboard access across all your projects (up to 5 active Co-Owners).',
               style: TextStyle(
-                  fontSize: 12, color: AppTheme.grayText, height: 1.4),
+                fontSize: 12,
+                color: AppTheme.grayText,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
             const Text(
@@ -1665,9 +1784,9 @@ class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(e
-                              .toString()
-                              .replaceFirst('Exception: ', '')),
+                          content: Text(
+                            e.toString().replaceFirst('Exception: ', ''),
+                          ),
                           backgroundColor: AppTheme.error,
                         ),
                       );
@@ -1681,12 +1800,16 @@ class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2),
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
                 )
                     : const Icon(Icons.vpn_key_outlined, size: 18),
-                label: Text(_loading
-                    ? 'Generating Code...'
-                    : 'Create Co-Owner & Generate Code'),
+                label: Text(
+                  _loading
+                      ? 'Generating Code...'
+                      : 'Create Co-Owner & Generate Code',
+                ),
               ),
             ),
           ],
@@ -1696,7 +1819,6 @@ class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
   }
 }
 
-// ── Co-Owner Code Generated Dialog ────────────────────────────
 class _CoOwnerCodeDialog extends StatelessWidget {
   final CoOwnerModel coOwner;
   const _CoOwnerCodeDialog({required this.coOwner});
@@ -1716,8 +1838,11 @@ class _CoOwnerCodeDialog extends StatelessWidget {
               color: AppTheme.successLight,
               borderRadius: BorderRadius.circular(28),
             ),
-            child: const Icon(Icons.admin_panel_settings_outlined,
-                color: AppTheme.success, size: 28),
+            child: const Icon(
+              Icons.admin_panel_settings_outlined,
+              color: AppTheme.success,
+              size: 28,
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -1820,7 +1945,6 @@ class _CoOwnerCodeDialog extends StatelessWidget {
   }
 }
 
-// ── Create Project Bottom Sheet ───────────────────────────────
 class _CreateProjectSheet extends StatefulWidget {
   final Future<void> Function(String name, String? description) onCreate;
   const _CreateProjectSheet({required this.onCreate});
@@ -1868,21 +1992,28 @@ class _CreateProjectSheetState extends State<_CreateProjectSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text('Create New Project',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.navyDark)),
+            const Text(
+              'Create New Project',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.navyDark,
+              ),
+            ),
             const SizedBox(height: 6),
             const Text(
-                'Uses a free active slot (up to 2) or an available annual Pro slot.',
-                style: TextStyle(fontSize: 12, color: AppTheme.grayText)),
+              'Uses a free active slot (up to 2) or an available annual Pro slot.',
+              style: TextStyle(fontSize: 12, color: AppTheme.grayText),
+            ),
             const SizedBox(height: 20),
-            const Text('Project name *',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.grayDark)),
+            const Text(
+              'Project name *',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.grayDark,
+              ),
+            ),
             const SizedBox(height: 6),
             TextFormField(
               controller: _nameCtrl,
@@ -1897,11 +2028,14 @@ class _CreateProjectSheetState extends State<_CreateProjectSheet> {
                   : null,
             ),
             const SizedBox(height: 16),
-            const Text('Description / Location (optional)',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.grayDark)),
+            const Text(
+              'Description / Location (optional)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.grayDark,
+              ),
+            ),
             const SizedBox(height: 6),
             TextFormField(
               controller: _descCtrl,
@@ -1942,10 +2076,13 @@ class _CreateProjectSheetState extends State<_CreateProjectSheet> {
                 },
                 icon: _loading
                     ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2))
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
                     : const Icon(Icons.add_circle_outline, size: 18),
                 label: Text(_loading ? 'Creating...' : 'Create Project'),
               ),

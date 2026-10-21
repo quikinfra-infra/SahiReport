@@ -28,6 +28,12 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
+
+        <!-- ── Google AdMob App ID Configuration ──────────────── -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-5323056712681249~8265486832"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -51,16 +57,10 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
-        <!-- AdMob App ID. This is Google's official TEST id — safe for
-             development. Replace with your real AdMob App ID before
-             going live with ads. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
 
     </application>
 
