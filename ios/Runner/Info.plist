@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Dpr Version 1</string>
+	<string>SahiReport</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,6 +26,41 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+
+	<!-- ── REQUIRED PRIVACY PERMISSION DESCRIPTIONS ── -->
+	<key>NSCameraUsageDescription</key>
+	<string>SahiReport requires camera access to capture timestamped and GPS-verified site progress photographs.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SahiReport requires your location to stamp precise GPS coordinates onto daily site inspection reports.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>SahiReport requires your location to verify site authenticity during report submissions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SahiReport requires photo library access to attach existing site photos to daily reports.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>SahiReport requires permission to save exported reports and stamped site photos to your device.</string>
+
+	<!-- ── GOOGLE ADMOB APP ID (Prevents startup crash on iOS) ── -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-5323056712681249~8265486832</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
+
+	<!-- ── APP STORE / TESTFLIGHT EXPORT COMPLIANCE ── -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!-- ── BACKGROUND MODES FOR PUSH NOTIFICATIONS ── -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
