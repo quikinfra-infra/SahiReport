@@ -319,6 +319,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── TAB 0: HOME DASHBOARD ───────────────────────────────────
   Widget _buildHomeTab() {
     final statsAsync = ref.watch(dashboardStatsProvider);
     final projectsState = ref.watch(projectsProvider);
@@ -417,6 +418,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── CO-OWNERS SECTION WIDGET (Two Pills: Active + Remove) ──
   Widget _buildCoOwnersSection(CoOwnersState coOwnersState) {
     final activeCount =
         coOwnersState.coOwners.where((c) => c.isActive).length;
@@ -698,6 +700,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── TAB 1: PROJECTS DIRECTORY ───────────────────────────────
   Widget _buildProjectsTab() {
     final projectsState = ref.watch(projectsProvider);
 
@@ -772,6 +775,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── TAB 2: USERS GROUPED BY PROJECT ──
   Widget _buildUsersTab() {
     final allUsersAsync = ref.watch(allUsersProvider);
     final projectsState = ref.watch(projectsProvider);
@@ -1122,6 +1126,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── TAB 3: SETTINGS & LEGAL DOCS ────────────────────────────
   Widget _buildSettingsTab() {
     final authState = ref.watch(authProvider);
     final owner = authState.owner;
@@ -1232,12 +1237,12 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             context,
             title: 'About SahiReport',
             content:
-            'SahiReport is a field reporting and Daily Progress Report (DPR) platform designed for construction, infrastructure, and field engineering teams.\n\n'
+            'SahiReport is a field reporting and Daily Progress Report (DPR) platform developed by Aayushree Impex LLP, designed for construction, infrastructure, and field engineering teams.\n\n'
                 '• Verified GPS & Timestamped Site Photos\n'
                 '• Instant Field-to-Office Daily Progress Reports\n'
                 '• Tamper-proof PDF & Excel Exports\n'
                 '• Simple Access Code Login for Site Supervisors & Co-Owners\n\n'
-                'Version 1.0.0',
+                '© Aayushree Impex LLP · Version 1.0.0',
           ),
         ),
         _buildSettingsTile(
@@ -1249,13 +1254,13 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
             title: 'Privacy Policy',
             content:
             '1. Data Collection\n'
-                'SahiReport collects account information (name, email, phone), project records, and GPS-tagged site photographs submitted by authorized field users.\n\n'
+                'SahiReport (operated by Aayushree Impex LLP) collects account information (name, email, phone), project records, and GPS-tagged site photographs submitted by authorized field users.\n\n'
                 '2. Location & Camera Usage\n'
                 'Location coordinates and timestamps are captured strictly at the time of report submission to verify site authenticity.\n\n'
                 '3. Data Ownership & Retention\n'
                 'All project data, photos, and reports belong solely to the Project Owner. Closed projects and removed users\' historical submissions remain archived in read-only mode so your records and exports remain accessible.\n\n'
                 '4. Security\n'
-                'All data is encrypted in transit and at rest. We never sell your project or personal data to third parties.',
+                'All data is encrypted in transit and at rest. Aayushree Impex LLP never sells your project or personal data to third parties.',
           ),
         ),
         _buildSettingsTile(
@@ -1271,7 +1276,9 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
                 '2. Closing Projects & Slot Reuse\n'
                 'Closing a project permanently locks it in Read-Only mode (preventing new field submissions while preserving full historical export access) and immediately frees up the active project slot for reuse during your active subscription year.\n\n'
                 '3. Removing Users\n'
-                'Removing a field user or co-owner permanently deactivates their access code and frees up their seat while preserving all historical submissions.',
+                'Removing a field user or co-owner permanently deactivates their access code and frees up their seat while preserving all historical submissions.\n\n'
+                '4. Operator\n'
+                'SahiReport is owned and operated by Aayushree Impex LLP.',
           ),
         ),
         const SizedBox(height: 24),
@@ -1404,6 +1411,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
     );
   }
 
+  // ── SHARED HELPERS ──────────────────────────────────────────
   Widget _buildFilterChips() {
     return Row(
       children: ['All', 'Active', 'Closed'].map((filter) {
@@ -1684,6 +1692,7 @@ class _OwnerDashboardScreenState extends ConsumerState<OwnerDashboardScreen> {
   }
 }
 
+// ── Add Co-Owner Bottom Sheet ─────────────────────────────────
 class _AddCoOwnerSheet extends StatefulWidget {
   final Future<void> Function(String name) onAdd;
   const _AddCoOwnerSheet({required this.onAdd});
@@ -1819,6 +1828,7 @@ class _AddCoOwnerSheetState extends State<_AddCoOwnerSheet> {
   }
 }
 
+// ── Co-Owner Code Generated Dialog ────────────────────────────
 class _CoOwnerCodeDialog extends StatelessWidget {
   final CoOwnerModel coOwner;
   const _CoOwnerCodeDialog({required this.coOwner});
@@ -1945,6 +1955,7 @@ class _CoOwnerCodeDialog extends StatelessWidget {
   }
 }
 
+// ── Create Project Bottom Sheet ───────────────────────────────
 class _CreateProjectSheet extends StatefulWidget {
   final Future<void> Function(String name, String? description) onCreate;
   const _CreateProjectSheet({required this.onCreate});

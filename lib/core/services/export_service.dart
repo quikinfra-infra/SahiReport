@@ -93,7 +93,7 @@ class PdfExportService {
     final pdfTheme = await _loadPdfTheme();
     final doc = pw.Document(
       title: '${project.name} - DPR Report',
-      author: 'SahiReport - Aayushree Technologies India Private Limited',
+      author: 'SahiReport - Aayushree Impex LLP',
       theme: pdfTheme,
     );
 
@@ -655,7 +655,7 @@ class PdfExportService {
               ),
               pw.SizedBox(width: 8),
               pw.Text(
-                'Designed and Developed by: Aayushree Technologies India Private Limited',
+                'Designed and Developed by: Aayushree Impex LLP',
                 style: pw.TextStyle(
                   color: textMuted,
                   fontSize: 7.5,
