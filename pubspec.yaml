@@ -10,6 +10,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # ── Media & Downloads ─────────────────────────────────────
+  gal: ^2.3.0
+  http: ^1.2.0
+
   # ── Supabase ──────────────────────────────────────────────
   supabase_flutter: ^2.8.4
 
@@ -67,7 +71,6 @@ dependencies:
   equatable: ^2.0.5
   freezed_annotation: ^2.4.1
   json_annotation: ^4.9.0
-  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -82,6 +85,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
     - assets/images/
     - assets/icons/
@@ -118,7 +122,7 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icons/ic_launcher.png"
-  adaptive_icon_background: "#1C315E" # Dark blue background matching your icon
+  adaptive_icon_background: "#1C315E"
   adaptive_icon_foreground: "assets/icons/ic_launcher.png"
   min_sdk_android: 21
   remove_alpha_ios: true

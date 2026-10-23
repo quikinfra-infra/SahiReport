@@ -875,6 +875,9 @@ class _SubmissionsTab extends ConsumerWidget {
                     );
                     try {
                       final owner = ref.read(authProvider).owner;
+                      if (owner == null) {
+                        throw Exception("Active session not found. Please log in again.");
+                      }
                       await PdfExportService.exportProjectReport(
                         project: project,
                         submissions: submissions,

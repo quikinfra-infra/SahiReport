@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/export_service.dart';
 import '../../../../core/widgets/upgrade_dialog.dart';
+import '../../../../core/utils/image_saver.dart'; // Added for individual image saving
 import '../../../../models/submission_model.dart';
 import '../../../../models/project_model.dart';
 import '../../../../providers/auth_provider.dart';
@@ -460,6 +461,7 @@ class _PhotoGallery extends StatefulWidget {
 class _PhotoGalleryState extends State<_PhotoGallery> {
   late final PageController _controller;
   late int _current;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -474,6 +476,17 @@ class _PhotoGalleryState extends State<_PhotoGallery> {
     super.dispose();
   }
 
+  Future<void> _handleDownload() async {
+    setState(() => _isSaving = true);
+    await ImageSaverHelper.saveImageToGallery(
+      context: context,
+      imagePathOrUrl: widget.urls[_current],
+    );
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -482,6 +495,41 @@ class _PhotoGalleryState extends State<_PhotoGallery> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: Text('Photo ${_current + 1} of ${widget.urls.length}'),
+        actions: [
+          _isSaving
+              ? const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          )
+              : PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Options',
+            onSelected: (value) {
+              if (value == 'download') {
+                _handleDownload();
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'download',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_rounded, size: 20, color: Colors.black87),
+                    SizedBox(width: 10),
+                    Text('Download Image'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(

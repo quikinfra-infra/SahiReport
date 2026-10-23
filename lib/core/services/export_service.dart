@@ -1,13 +1,11 @@
 // lib/core/services/export_service.dart
-import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart';
 import '../../models/owner_model.dart';
 import '../../models/project_model.dart';
 import '../../models/submission_model.dart';
@@ -24,6 +22,29 @@ class PdfExportService {
   static const PdfColor borderGray = PdfColor.fromInt(0xFFDCE1E8);
   static const PdfColor textDark = PdfColor.fromInt(0xFF1E293B);
   static const PdfColor textMuted = PdfColor.fromInt(0xFF64748B);
+
+  /// Helper class to hold image bytes and orientation
+  static Future<_ProcessedImage?> _processImageBytes(String url) async {
+    try {
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final bytes = response.bodyBytes;
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        final width = frame.image.width;
+        final height = frame.image.height;
+        final isLandscape = width > height;
+
+        return _ProcessedImage(
+          image: pw.MemoryImage(bytes),
+          isLandscape: isLandscape,
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
 
   /// Loads `assets/images/logo.png` (or `assets/icons/ic_launcher.png`) and
   /// normalizes it via Flutter's native codec so the PDF renderer never fails.
@@ -83,9 +104,9 @@ class PdfExportService {
     }
   }
 
-  /// Generates the PDF, saves it directly to the device Downloads folder,
-  /// and opens the native Share / Save / Open PDF sheet. Returns saved file path.
-  static Future<String> exportProjectReport({
+  /// Generates the PDF and opens the native Printing preview sheet
+  /// for instant visual inspection, saving, or sharing.
+  static Future<void> exportProjectReport({
     required ProjectModel project,
     required List<SubmissionModel> submissions,
     OwnerModel? owner,
@@ -100,15 +121,15 @@ class PdfExportService {
     // Load actual company/app logo from assets
     final pw.MemoryImage? logoImage = await _loadLogoImage();
 
-    // Pre-fetch ALL submission photos (up to 6 per submission)
-    final Map<String, List<pw.MemoryImage>> submissionPhotos = {};
+    // Pre-fetch and process ALL submission photos (up to 6 per submission)
+    final Map<String, List<_ProcessedImage>> submissionPhotos = {};
     for (final sub in submissions) {
       if (sub.imageUrls != null && sub.imageUrls!.isNotEmpty) {
-        final List<pw.MemoryImage> loadedImages = [];
+        final List<_ProcessedImage> loadedImages = [];
         for (final url in sub.imageUrls!.take(6)) {
-          final bytes = await _fetchImageBytes(url);
-          if (bytes != null) {
-            loadedImages.add(pw.MemoryImage(bytes));
+          final processed = await _processImageBytes(url);
+          if (processed != null) {
+            loadedImages.add(processed);
           }
         }
         if (loadedImages.isNotEmpty) {
@@ -161,44 +182,74 @@ class PdfExportService {
         ),
       );
     } else {
-      // Each submission gets its own dedicated page to prevent overlapping
+      // Intelligent layout chunking:
+      // - Landscape (16:9) images take 1 full page by themselves.
+      // - Vertical (9:16) images group into pairs (2 columns per row) or stand alone.
       for (int i = 0; i < submissions.length; i++) {
         final sub = submissions[i];
         final photos = submissionPhotos[sub.id] ?? [];
 
-        doc.addPage(
-          pw.Page(
-            pageFormat: PdfPageFormat.a4,
-            margin: const pw.EdgeInsets.fromLTRB(32, 32, 32, 40),
-            build: (context) => pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _buildHeader(
-                  project: project,
-                  owner: owner,
-                  exportDateStr: displayDateStr,
-                  logoImage: logoImage,
-                ),
-                pw.SizedBox(height: 12),
-                _buildProjectSummaryBanner(project, submissions.length),
-                pw.SizedBox(height: 12),
-                pw.Expanded(
-                  child: _buildSubmissionCard(
-                    index: i + 1,
-                    submission: sub,
-                    photos: photos,
+        List<List<_ProcessedImage>> photoChunks = [];
+        if (photos.isEmpty) {
+          photoChunks.add([]);
+        } else {
+          int idx = 0;
+          while (idx < photos.length) {
+            final current = photos[idx];
+            if (current.isLandscape) {
+              photoChunks.add([current]);
+              idx++;
+            } else {
+              if (idx + 1 < photos.length && !photos[idx + 1].isLandscape) {
+                photoChunks.add([photos[idx], photos[idx + 1]]);
+                idx += 2;
+              } else {
+                photoChunks.add([photos[idx]]);
+                idx++;
+              }
+            }
+          }
+        }
+
+        // Generate a page for each chunk in this submission
+        for (int c = 0; c < photoChunks.length; c++) {
+          final chunk = photoChunks[c];
+          final isContinuation = c > 0;
+
+          doc.addPage(
+            pw.Page(
+              pageFormat: PdfPageFormat.a4,
+              margin: const pw.EdgeInsets.fromLTRB(32, 32, 32, 40),
+              build: (context) => pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(
+                    project: project,
+                    owner: owner,
+                    exportDateStr: displayDateStr,
+                    logoImage: logoImage,
                   ),
-                ),
-                pw.SizedBox(height: 8),
-                _buildFooter(context, logoImage),
-              ],
+                  pw.SizedBox(height: 12),
+                  _buildProjectSummaryBanner(project, submissions.length),
+                  pw.SizedBox(height: 12),
+                  pw.Expanded(
+                    child: _buildSubmissionCard(
+                      index: i + 1,
+                      submission: sub,
+                      currentChunkPhotos: chunk,
+                      isContinuation: isContinuation,
+                      totalPhotos: photos.length,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  _buildFooter(context, logoImage),
+                ],
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
     }
-
-    final pdfBytes = await doc.save();
 
     final sanitizedName = project.name
         .replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_')
@@ -206,35 +257,11 @@ class PdfExportService {
     final fileName =
         'SahiReport_${sanitizedName}_${exportDateStr}_${now.millisecondsSinceEpoch}.pdf';
 
-    final file = await _savePdfToDevice(fileName, pdfBytes);
-
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'application/pdf')],
-      subject: '${project.name} - Daily Progress Report (DPR)',
-      text:
-      'Official Daily Progress Report for ${project.name} (Verified by SahiReport)',
+    // Opens native Printing preview and inspection sheet seamlessly
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: fileName,
     );
-
-    return file.path;
-  }
-
-  /// Saves PDF directly into Android Public Downloads folder (or app Documents fallback)
-  static Future<File> _savePdfToDevice(String fileName, Uint8List bytes) async {
-    if (Platform.isAndroid) {
-      try {
-        final directDownloadDir = Directory('/storage/emulated/0/Download');
-        if (await directDownloadDir.exists()) {
-          final file = File('${directDownloadDir.path}/$fileName');
-          await file.writeAsBytes(bytes, flush: true);
-          return file;
-        }
-      } catch (_) {}
-    }
-
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/$fileName');
-    await file.writeAsBytes(bytes, flush: true);
-    return file;
   }
 
   // ── Top Document Header ───────────────────────────────────────
@@ -418,27 +445,86 @@ class PdfExportService {
     );
   }
 
-  // ── Individual DPR Submission Card (Strict 1-per-page fit) ──
+  // ── Individual DPR Submission Card ───────────────────────────
   static pw.Widget _buildSubmissionCard({
     required int index,
     required SubmissionModel submission,
-    required List<pw.MemoryImage> photos,
+    required List<_ProcessedImage> currentChunkPhotos,
+    required bool isContinuation,
+    required int totalPhotos,
   }) {
-    // Match exact timestamp shown in the app UI (e.g., 17 Oct 2026 at 17:42)
     final dt = submission.submittedAt;
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     final dateStr =
-        '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]}${dt.year}';
+        '${dt.day.toString().padLeft(2, '0')} ${months[dt.month - 1]} ${dt.year}';
     final time24Str =
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
-    // Dynamic grid sizing so 1–4 photos use a 2x2 layout and 5–6 photos use a 3x2 layout
-    final bool hasMoreThanFour = photos.length > 4;
-    final double photoWidth = hasMoreThanFour ? 158.0 : 230.0;
-    final double photoHeight = hasMoreThanFour ? 128.0 : 140.0;
+    List<pw.Widget> photoContentWidgets = [];
+
+    if (currentChunkPhotos.length == 1) {
+      final processed = currentChunkPhotos.first;
+      photoContentWidgets.add(
+        pw.Expanded(
+          child: pw.Center(
+            child: pw.Container(
+              width: processed.isLandscape ? double.infinity : 280,
+              height: double.infinity,
+              decoration: pw.BoxDecoration(
+                borderRadius: pw.BorderRadius.circular(6),
+                border: pw.Border.all(color: borderGray, width: 0.6),
+              ),
+              child: pw.ClipRRect(
+                horizontalRadius: 6,
+                verticalRadius: 6,
+                child: pw.Image(processed.image, fit: pw.BoxFit.contain),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else if (currentChunkPhotos.length == 2) {
+      photoContentWidgets.add(
+        pw.Expanded(
+          child: pw.Row(
+            children: [
+              pw.Expanded(
+                child: pw.Container(
+                  height: double.infinity,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: pw.BorderRadius.circular(6),
+                    border: pw.Border.all(color: borderGray, width: 0.6),
+                  ),
+                  child: pw.ClipRRect(
+                    horizontalRadius: 6,
+                    verticalRadius: 6,
+                    child: pw.Image(currentChunkPhotos[0].image, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              ),
+              pw.SizedBox(width: 10),
+              pw.Expanded(
+                child: pw.Container(
+                  height: double.infinity,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: pw.BorderRadius.circular(6),
+                    border: pw.Border.all(color: borderGray, width: 0.6),
+                  ),
+                  child: pw.ClipRRect(
+                    horizontalRadius: 6,
+                    verticalRadius: 6,
+                    child: pw.Image(currentChunkPhotos[1].image, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return pw.Container(
       decoration: pw.BoxDecoration(
@@ -449,10 +535,9 @@ class PdfExportService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          // Steel Blue Entry Header Bar (Uses visual divider line instead of pipe character)
+          // Header Bar
           pw.Container(
-            padding:
-            const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: const pw.BoxDecoration(
               color: steelBlue,
               borderRadius: pw.BorderRadius.vertical(
@@ -467,7 +552,7 @@ class PdfExportService {
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
-                      'ENTRY #$index',
+                      'ENTRY #$index${isContinuation ? " (Continued)" : ""}',
                       style: pw.TextStyle(
                         color: PdfColors.white,
                         fontSize: 9.5,
@@ -492,7 +577,7 @@ class PdfExportService {
                   ],
                 ),
                 pw.Text(
-                  '$dateStr at$time24Str',
+                  '$dateStr at $time24Str',
                   style: const pw.TextStyle(
                     color: PdfColor.fromInt(0xFFE2E8F0),
                     fontSize: 8.5,
@@ -502,7 +587,7 @@ class PdfExportService {
             ),
           ),
 
-          // Metadata & Work Notes Body
+          // Metadata & Content Body
           pw.Expanded(
             child: pw.Padding(
               padding: const pw.EdgeInsets.all(10),
@@ -530,7 +615,7 @@ class PdfExportService {
                           borderRadius: pw.BorderRadius.circular(4),
                         ),
                         child: pw.Text(
-                          'GPS Verified: ${submission.latitude.toStringAsFixed(4)} N,${submission.longitude.toStringAsFixed(4)} E',
+                          'GPS Verified: ${submission.latitude.toStringAsFixed(4)} N, ${submission.longitude.toStringAsFixed(4)} E',
                           style: pw.TextStyle(
                             color: forestGreen,
                             fontSize: 8,
@@ -540,7 +625,9 @@ class PdfExportService {
                       ),
                     ],
                   ),
-                  if (submission.formText != null &&
+
+                  // Only display notes on the very first page of the entry
+                  if (!isContinuation && submission.formText != null &&
                       submission.formText!.trim().isNotEmpty) ...[
                     pw.SizedBox(height: 8),
                     pw.Text(
@@ -571,10 +658,11 @@ class PdfExportService {
                       ),
                     ),
                   ],
-                  if (photos.isNotEmpty) ...[
+
+                  if (currentChunkPhotos.isNotEmpty) ...[
                     pw.SizedBox(height: 8),
                     pw.Text(
-                      'PHOTO EVIDENCE (${photos.length})',
+                      isContinuation ? 'PHOTO EVIDENCE (Continued)' : 'PHOTO EVIDENCE ($totalPhotos)',
                       style: pw.TextStyle(
                         color: textMuted,
                         fontSize: 7.5,
@@ -583,31 +671,9 @@ class PdfExportService {
                       ),
                     ),
                     pw.SizedBox(height: 6),
-                    pw.Expanded(
-                      child: pw.Center(
-                        child: pw.Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: pw.WrapAlignment.center,
-                          children: photos.map((img) {
-                            return pw.Container(
-                              width: photoWidth,
-                              height: photoHeight,
-                              decoration: pw.BoxDecoration(
-                                borderRadius: pw.BorderRadius.circular(4),
-                                border: pw.Border.all(
-                                    color: borderGray, width: 0.6),
-                              ),
-                              child: pw.ClipRRect(
-                                horizontalRadius: 4,
-                                verticalRadius: 4,
-                                child: pw.Image(img, fit: pw.BoxFit.cover),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
+                    ...photoContentWidgets,
+                  ] else ...[
+                    pw.Spacer(),
                   ],
                 ],
               ),
@@ -665,7 +731,7 @@ class PdfExportService {
             ],
           ),
           pw.Text(
-            'Page ${context.pageNumber} of${context.pagesCount}',
+            'Page ${context.pageNumber} of ${context.pagesCount}',
             style: const pw.TextStyle(
               color: textMuted,
               fontSize: 8,
@@ -715,16 +781,14 @@ class PdfExportService {
       ),
     );
   }
+}
 
-  static Future<Uint8List?> _fetchImageBytes(String url) async {
-    try {
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
-      }
-    } catch (_) {}
-    return null;
-  }
+class _ProcessedImage {
+  final pw.MemoryImage image;
+  final bool isLandscape;
+
+  _ProcessedImage({
+    required this.image,
+    required this.isLandscape,
+  });
 }
