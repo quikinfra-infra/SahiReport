@@ -1,8 +1,9 @@
 // lib/repositories/project_repository.dart
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 // All database operations for projects
-// ─────────────────────────────────────────────────────────────
+// -------------------------------------------------------------
 
+import 'package:flutter/foundation.dart';
 import '../core/constants/app_constants.dart';
 import '../models/project_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,7 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 final supabase = Supabase.instance.client;
 
 class ProjectRepository {
-  // ── Fetch all projects for owner ──────────────────────────
+  // -- Fetch all projects for owner ---------------------------
   // Includes user count and submission count via subqueries
   Future<List<ProjectModel>> getProjects(String ownerId) async {
     final response = await supabase.from('projects').select('''
@@ -34,7 +35,7 @@ class ProjectRepository {
     }).toList();
   }
 
-  // ── Fetch single project ──────────────────────────────────
+  // -- Fetch single project -----------------------------------
   Future<ProjectModel?> getProject(String projectId) async {
     final response = await supabase.from('projects').select('''
           *,
@@ -54,7 +55,7 @@ class ProjectRepository {
     });
   }
 
-  // ── Check if owner is on the free plan ────────────────────
+  // -- Check if owner is on the free plan ---------------------
   Future<bool> _isFreeOwner(String ownerId) async {
     final row = await supabase
         .from('owners')
@@ -65,7 +66,7 @@ class ProjectRepository {
     return (row['plan_type'] as String?) != 'pro';
   }
 
-  // ── Create project ────────────────────────────────────────
+  // -- Create project -----------------------------------------
   // Client-side guard mirrors the DB trigger (enforce_project_limit)
   // so the user gets a friendly message instead of a raw DB error.
   Future<ProjectModel> createProject({
@@ -76,12 +77,12 @@ class ProjectRepository {
     // Free-plan limit check
     if (await _isFreeOwner(ownerId)) {
       final existing =
-      await supabase.from('projects').select('id').eq('owner_id', ownerId);
+          await supabase.from('projects').select('id').eq('owner_id', ownerId);
 
       if ((existing as List).length >= AppConstants.freePlanMaxProjects) {
         throw Exception(
           'Free plan allows up to ${AppConstants.freePlanMaxProjects} projects. '
-              'Upgrade to Pro for unlimited projects.',
+          'Upgrade to Pro for unlimited projects.',
         );
       }
     }
@@ -89,17 +90,17 @@ class ProjectRepository {
     final response = await supabase
         .from('projects')
         .insert({
-      'owner_id': ownerId,
-      'name': name,
-      'description': description,
-    })
+          'owner_id': ownerId,
+          'name': name,
+          'description': description,
+        })
         .select()
         .single();
 
     return ProjectModel.fromJson(response);
   }
 
-  // ── Update project ────────────────────────────────────────
+  // -- Update project -----------------------------------------
   Future<ProjectModel> updateProject({
     required String projectId,
     String? name,
@@ -121,12 +122,31 @@ class ProjectRepository {
     return ProjectModel.fromJson(response);
   }
 
-  // ── Delete project ────────────────────────────────────────
+  // -- Delete project -----------------------------------------
+  // Purges all submission images from Storage before deleting the project
+  // row, so no orphaned files accumulate in the storage bucket.
   Future<void> deleteProject(String projectId) async {
+    try {
+      final images = await supabase
+          .from('submission_images')
+          .select('storage_path')
+          .eq('project_id', projectId) as List;
+
+      if (images.isNotEmpty) {
+        final paths = images
+            .map((row) => row['storage_path'] as String)
+            .toList();
+        await supabase.storage
+            .from(AppConstants.storageBucket)
+            .remove(paths);
+      }
+    } catch (e) {
+      debugPrint('Storage cleanup failed for project $projectId: $e');
+    }
     await supabase.from('projects').delete().eq('id', projectId);
   }
 
-  // ── Get dashboard stats ───────────────────────────────────
+  // -- Get dashboard stats ------------------------------------
   Future<Map<String, int>> getDashboardStats(String ownerId) async {
     // Total active projects
     final projectsRes = await supabase
@@ -145,7 +165,7 @@ class ProjectRepository {
     // Today's submissions
     final today = DateTime.now();
     final todayStart =
-    DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
+        DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
 
     final todayRes = await supabase
         .from('submissions')
@@ -155,7 +175,7 @@ class ProjectRepository {
 
     // Total submissions
     final totalSubRes =
-    await supabase.from('submissions').select().eq('owner_id', ownerId);
+        await supabase.from('submissions').select().eq('owner_id', ownerId);
 
     return {
       'active_projects': (projectsRes as List).length,

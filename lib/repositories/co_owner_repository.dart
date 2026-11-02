@@ -6,11 +6,15 @@ import '../models/co_owner_model.dart';
 class CoOwnerRepository {
   final SupabaseClient _client = Supabase.instance.client;
 
+  /// Generates a cryptographically secure Co-Owner access code.
+  /// Format: ADMN-XXXXXXXX (8 random chars from a 31-char unambiguous set)
+  /// Entropy: 31^8 ? 8.5 ? 10^11 combinations ? brute-force impractical.
   String _generateAccessCode() {
+    // Omit visually ambiguous characters (0/O, 1/I/L) to prevent misreading.
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rand = Random.secure();
     final suffix =
-    List.generate(4, (_) => chars[rand.nextInt(chars.length)]).join();
+        List.generate(8, (_) => chars[rand.nextInt(chars.length)]).join();
     return 'ADMN-$suffix';
   }
 

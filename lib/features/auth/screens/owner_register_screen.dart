@@ -68,12 +68,12 @@ class _OwnerRegisterScreenState extends ConsumerState<OwnerRegisterScreen> {
       if (!mounted) return;
 
       if (needsVerification) {
+        // Supabase sends an email confirmation link (not an SMS OTP) by default.
+        // Redirect to the email confirmation screen so the user knows to check
+        // their inbox, not wait for an SMS that was never sent.
         context.push(
-          AppRoutes.otpVerification,
-          extra: {
-            'email': email,
-            'phone': phone,
-          },
+          AppRoutes.confirmEmail,
+          extra: email,
         );
       } else {
         context.go(AppRoutes.ownerDashboard);

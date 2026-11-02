@@ -34,6 +34,8 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const String supportEmail = 'support@fieldtrack.in';
   static const String deepLinkScheme = 'fieldtrack';
+  static const String privacyPolicyUrl = 'https://sahireport.in/privacy-policy';
+  static const String termsOfServiceUrl = 'https://sahireport.in/terms-of-service';
 
   // ── Free Plan Limits ──────────────────────────────────────
   // 2 projects per owner, 5 users PER PROJECT.

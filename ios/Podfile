@@ -45,7 +45,7 @@ post_install do |installer|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
 
       # Enable required permissions for permission_handler on iOS
-      config.build_settings['GCC_PREPROCESSOR_definitions'] ||= [
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
         'PERMISSION_CAMERA=1',
         'PERMISSION_PHOTOS=1',

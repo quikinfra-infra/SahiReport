@@ -31,7 +31,11 @@ class _CodeLoginScreenState extends ConsumerState<CodeLoginScreen> {
 
   String get _fullCode => '${_part1.text}-${_part2.text}';
 
-  bool get _isComplete => _part1.text.length == 4 && _part2.text.length == 4;
+  // Field-user codes: XXXX-XXXX (4+4)
+  // Co-Owner codes:   ADMN-XXXXXXXX (4+8)
+  bool get _isComplete =>
+      _part1.text.length == 4 &&
+      (_part2.text.length == 4 || _part2.text.length == 8);
 
   Future<void> _submit() async {
     if (!_isComplete) return;
@@ -136,7 +140,7 @@ class _CodeLoginScreenState extends ConsumerState<CodeLoginScreen> {
                       const SizedBox(height: 16),
                       Center(
                         child: Text(
-                          'Format: XXXX—XXXX',
+                          'Format: XXXX—XXXX (field user) or ADMN—XXXXXXXX (admin)',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.white.withValues(alpha: 0.3),
@@ -225,14 +229,14 @@ class _CodeSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 120,
+      width: 160, // Wider to fit up to 8 chars for co-owner codes
       child: TextField(
         controller: controller,
         focusNode: focusNode,
         autofocus: autofocus,
         textAlign: TextAlign.center,
         textCapitalization: TextCapitalization.characters,
-        maxLength: 4,
+        maxLength: 8, // Up to 8 chars for co-owner suffix (ADMN-XXXXXXXX)
         style: const TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.w700,
@@ -264,7 +268,9 @@ class _CodeSegment extends StatelessWidget {
           UpperCaseTextFormatter(),
         ],
         onChanged: (v) {
-          if (v.length == 4) onComplete?.call();
+          // Trigger submit for 4-char field-user codes or
+          // 8-char co-owner codes (both valid suffix lengths).
+          if (v.length == 4 || v.length == 8) onComplete?.call();
         },
       ),
     );

@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>dpr_version_1</string>
+	<string>SahiReport</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,19 +27,33 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 
+	<!-- ── DEEP LINKING URL SCHEMES ── -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.sahireport.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>fieldtrack</string>
+				<string>sahireport</string>
+			</array>
+		</dict>
+	</array>
+
 	<!-- ── REQUIRED PRIVACY PERMISSION DESCRIPTIONS ── -->
 	<key>NSCameraUsageDescription</key>
 	<string>SahiReport requires camera access to capture timestamped and GPS-verified site progress photographs.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>SahiReport requires your location to stamp precise GPS coordinates onto daily site inspection reports.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SahiReport requires your location to verify site authenticity during report submissions.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>SahiReport requires photo library access to attach existing site photos to daily reports.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SahiReport requires permission to save exported reports and stamped site photos to your device.</string>
 
-	<!-- ── GOOGLE ADMOB APP ID (Prevents startup crash on iOS) ── -->
+	<!-- ── GOOGLE ADMOB APP ID ── -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-5323056712681249~8265486832</string>
 	<key>SKAdNetworkItems</key>
@@ -47,6 +61,70 @@
 		<dict>
 			<key>SKAdNetworkIdentifier</key>
 			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>4fzdc2evr5.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>2fnua5tdw4.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>ydx93a7ass.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>p78axxw29g.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>v72qych544.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>ludvb6z3bs.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cp8zw746q7.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>c6k4g5qg8m.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>s39g8k73mm.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>3qy4746246.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>3sh42y64q3.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>f38h382jwy.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>mlmmfzh3r3.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>wg4vffrq83.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>gta9lk7p23.skadnetwork</string>
+		</dict>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>w9fl98au8r.skadnetwork</string>
 		</dict>
 	</array>
 

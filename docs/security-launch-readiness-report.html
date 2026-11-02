@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SahiReport — Security &amp; Launch Readiness Report</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm 12mm 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", -apple-system, Roboto, Arial, sans-serif;
+    color: #1e293b; font-size: 9.5pt; line-height: 1.45; margin: 0;
+  }
+  h1 { font-size: 20pt; margin: 0 0 2mm 0; color: #0f1f3d; letter-spacing: -0.3px; }
+  .sub { color: #64748b; font-size: 9pt; margin: 0 0 1mm 0; }
+  .meta { color: #64748b; font-size: 8.5pt; margin: 0 0 5mm 0; }
+  .verdict {
+    border-left: 4px solid #b91c1c; background: #fef2f2;
+    padding: 3.2mm 4mm; margin: 0 0 5mm 0; border-radius: 2px;
+  }
+  .verdict strong { color: #991b1b; font-size: 11pt; }
+  .verdict p { margin: 1.2mm 0 0 0; font-size: 9pt; color: #450a0a; }
+  .counts { display: flex; gap: 3mm; margin: 0 0 5mm 0; }
+  .count {
+    flex: 1; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 2.5mm 3mm; background: #f8fafc;
+  }
+  .count .n { font-size: 17pt; font-weight: 700; line-height: 1; }
+  .count .l { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+  .c-critical .n { color: #b91c1c; }
+  .c-high .n { color: #b45309; }
+  .c-medium .n { color: #1d4ed8; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th {
+    background: #0f1f3d; color: #fff; text-align: left; font-size: 8.2pt;
+    text-transform: uppercase; letter-spacing: .4px; padding: 2.2mm 2.4mm; font-weight: 600;
+  }
+  td { padding: 2.2mm 2.4mm; border-bottom: 1px solid #e8edf3; vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  .id { font-family: Consolas, "Courier New", monospace; font-weight: 700; white-space: nowrap; font-size: 8.6pt; }
+  .sev {
+    display: inline-block; padding: .7mm 2mm; border-radius: 10px;
+    font-size: 7.4pt; font-weight: 700; white-space: nowrap; text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .s-critical { background: #fee2e2; color: #991b1b; }
+  .s-high     { background: #fef3c7; color: #92400e; }
+  .s-medium   { background: #dbeafe; color: #1e40af; }
+  .ev { font-family: Consolas, "Courier New", monospace; font-size: 7.8pt; color: #475569; }
+  .issue { font-weight: 600; color: #0f172a; }
+  .note { color: #64748b; font-size: 8.4pt; margin-top: 1mm; }
+  h2 { font-size: 12pt; color: #0f1f3d; margin: 7mm 0 2.5mm 0; }
+  ol, ul { margin: 0 0 0 5mm; padding: 0; }
+  li { margin-bottom: 1.4mm; }
+  code { font-family: Consolas, "Courier New", monospace; background: #f1f5f9; padding: 0 1mm; border-radius: 2px; font-size: 8.2pt; }
+  pre {
+    font-family: Consolas, "Courier New", monospace; font-size: 7.6pt; line-height: 1.4;
+    background: #0f1f3d; color: #e2e8f0; padding: 3mm 3.5mm; border-radius: 4px;
+    white-space: pre-wrap; margin: 0 0 3mm 0;
+  }
+  .footer { margin-top: 5mm; padding-top: 2.5mm; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 7.8pt; }
+  .pagebreak { break-before: page; page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>SahiReport — Security &amp; Launch Readiness Report</h1>
+<p class="sub">Pre-launch review of the Flutter (Client) + Supabase (Backend) field-reporting application</p>
+<p class="meta">Repository: <strong>SahiReport</strong> &nbsp;·&nbsp; Version reviewed: 1.0.0+1 &nbsp;·&nbsp; Review date: 28 October 2026 &nbsp;·&nbsp; Method: static review of <code>lib/</code>, platform config, Edge Functions, and git history</p>
+
+<div class="verdict">
+  <strong>Verdict: NOT ready for public launch.</strong>
+  <p>Five controls that determine whether revenue and customer data are protected are missing or unverifiable.
+  Two of them independently block Google Play / App Store submission. Closed beta is defensible only after
+  C1, C3, C4 and C5 are closed. Do not switch Razorpay to a live key before C1 is fixed.</p>
+</div>
+
+<div class="counts">
+  <div class="count c-critical"><div class="n">6</div><div class="l">Critical</div></div>
+  <div class="count c-high"><div class="n">7</div><div class="l">High</div></div>
+  <div class="count c-medium"><div class="n">5</div><div class="l">Medium</div></div>
+  <div class="count"><div class="n">18</div><div class="l">Total findings</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:7%">ID</th>
+      <th style="width:47%">Finding</th>
+      <th style="width:13%">Severity</th>
+      <th style="width:33%">Evidence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="id">C1</td>
+      <td><span class="issue">Pro entitlement granted by the client; no payment verification</span><br>
+        The Razorpay callback only proves the SDK reported success. The app then writes
+        <code>plan_type</code>, <code>pro_project_slots</code> and <code>pro_expires_at</code> itself.
+        A modified client can grant itself unlimited Pro slots for free.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td class="ev">billing_screen.dart:46-89</td>
+    </tr>
+    <tr>
+      <td class="id">C2</td>
+      <td><span class="issue">Release builds signed with the debug keystore</span><br>
+        The debug key is public and identical across all Android SDK installs. Play rejection risk;
+        third parties can sign a fake "update" that Android treats as the same app.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td class="ev">android/app/build.gradle.kts:31-35</td>
+    </tr>
+    <tr>
+      <td class="id">C3</td>
+      <td><span class="issue">RLS policies absent from the repository; security boundary unverifiable</span><br>
+        All non-owner access reaches PostgREST as <code>anon</code> using a key embedded in every APK.
+        If RLS is missing or permissive, all customer data, GPS records, photo URLs and FCM tokens are exposed.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td class="ev">no <code>supabase/migrations/</code>; schema exists only in hosted project</td>
+    </tr>
+    <tr>
+      <td class="id">C4</td>
+      <td><span class="issue">Public storage bucket with unauthenticated uploads</span><br>
+        Field users upload without a session and the app calls <code>getPublicUrl()</code>. Anyone holding
+        the anon key can upload arbitrary files (cost abuse / illegal content), and every photo URL is
+        permanently public — including after account deletion.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td class="ev">submission_repository.dart:168-174, 224-230</td>
+    </tr>
+    <tr>
+      <td class="id">C5</td>
+      <td><span class="issue">Guessable co-owner code; no expiry, no throttling</span><br>
+        Co-owner codes are <code>ADMN-</code> + 4 characters from a 32-symbol alphabet (≈1.05M combinations).
+        The login RPC is callable by <code>anon</code> with no attempt limit; a successful code grants the
+        whole owner account and never expires.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td class="ev">co_owner_repository.dart:9-15; auth_provider.dart:322-365</td>
+    </tr>
+    <tr>
+      <td class="id">C6</td>
+      <td><span class="issue">"GPS-verified / tamper-proof" is asserted entirely by the client</span><br>
+        Coordinates, timestamp and the photo stamp are produced on-device. A modified client can submit any
+        location and any image. The commercial claim is not backed by a server-side trust boundary.</td>
+      <td><span class="sev s-high">High — product/trust</span></td>
+      <td class="ev">image_stamp_service.dart; <code>submit_report</code> params</td>
+    </tr>
+    <tr>
+      <td class="id">H1</td>
+      <td><span class="issue">"Delete account" only soft-deletes; hard-delete function never called</span><br>
+        <code>is_deleted</code>/<code>deleted_at</code> are set and the user is signed out. The
+        <code>delete-account</code> Edge Function is never invoked, so no data is actually removed —
+        contradicting the published policy.</td>
+      <td><span class="sev s-high">High — legal</span></td>
+      <td class="ev">auth_repository.dart:165-170; profile_edit_screen.dart:151</td>
+    </tr>
+    <tr>
+      <td class="id">H2</td>
+      <td><span class="issue">Privacy policy is an unfilled template and contradicts the app</span><br>
+        Placeholders remain (<code>[DATE]</code>, <code>[COMPANY LEGAL NAME]</code>,
+        <code>[PRIVACY CONTACT EMAIL]</code>, <code>[REGION]</code>). It states data is not used for
+        third-party advertising while AdMob banners are displayed. No consent step at signup.</td>
+      <td><span class="sev s-high">High — legal</span></td>
+      <td class="ev">Privacy Policy.txt:27-44, 89-90, 156-158</td>
+    </tr>
+    <tr>
+      <td class="id">H3</td>
+      <td><span class="issue">Push-notification function callable by anyone; no ownership check</span><br>
+        Uses the service role and trusts the request body. Any holder of the anon key can trigger
+        notification spam against owners and burn FCM quota.</td>
+      <td><span class="sev s-high">High</span></td>
+      <td class="ev">functions/send-notification/index.ts:15-21</td>
+    </tr>
+    <tr>
+      <td class="id">H4</td>
+      <td><span class="issue">Digital goods sold via Razorpay inside the app</span><br>
+        Google Play requires Play Billing for in-app digital goods; Apple requires IAP. Current flow is a
+        removal risk. Either integrate store billing or sell externally and only consume entitlement in-app.</td>
+      <td><span class="sev s-high">High — store policy</span></td>
+      <td class="ev">billing_screen.dart:103-132</td>
+    </tr>
+    <tr>
+      <td class="id">H5</td>
+      <td><span class="issue">Background location declared but never used</span><br>
+        The app only calls <code>getCurrentPosition</code> (when-in-use). Play requires a background-location
+        declaration and video; Apple rejects unused "Always" requests.</td>
+      <td><span class="sev s-high">High — store review</span></td>
+      <td class="ev">AndroidManifest.xml:9; ios/Runner/Info.plist:35</td>
+    </tr>
+    <tr>
+      <td class="id">H6</td>
+      <td><span class="issue">Owner session stored unencrypted; device backups enabled</span><br>
+        <code>flutter_secure_storage</code> is declared but never used, so supabase_flutter persists the
+        session in SharedPreferences. Android <code>allowBackup</code> is not disabled.</td>
+      <td><span class="sev s-high">High</span></td>
+      <td class="ev">pubspec.yaml:63; no <code>FlutterSecureStorage</code> usage; manifest has no <code>allowBackup</code></td>
+    </tr>
+    <tr>
+      <td class="id">H7</td>
+      <td><span class="issue">Free-tier submission cap is not enforced</span><br>
+        <code>freePlanMaxSubmissions = 50</code> is referenced nowhere. There is no submission throttling,
+        leaving storage-cost and spam abuse unmitigated.</td>
+      <td><span class="sev s-high">High — cost abuse</span></td>
+      <td class="ev">app_constants.dart:44 — unused</td>
+    </tr>
+    <tr>
+      <td class="id">M1</td>
+      <td><span class="issue">Profile update writes NULL into every omitted column</span><br>
+        The update map includes all fields unconditionally, so partial updates erase existing data.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">auth_repository.dart:146-157</td>
+    </tr>
+    <tr>
+      <td class="id">M2</td>
+      <td><span class="issue">Image upload failures are swallowed</span><br>
+        Per-image errors are only logged, so a "successful" report can contain zero evidence photos.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">submission_repository.dart:184-186, 239-241</td>
+    </tr>
+    <tr>
+      <td class="id">M3</td>
+      <td><span class="issue">Co-owner can reach the billing route</span><br>
+        Billing is hidden in the UI but not blocked in the router redirect; a co-owner could purchase on the
+        owner's account.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">app_router.dart:45-98; owner_dashboard_screen.dart:1197-1221</td>
+    </tr>
+    <tr>
+      <td class="id">M4</td>
+      <td><span class="issue">Account deletion never removes Storage objects</span><br>
+        The hard-delete function removes table rows only; photos remain in the bucket.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">functions/delete-account/index.ts:65-91</td>
+    </tr>
+    <tr>
+      <td class="id">M5</td>
+      <td><span class="issue">No server-side OTP send throttling</span><br>
+        Only a 30-second client cooldown exists; it is bypassable and does not protect SMS/email spend.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">confirm_email_screen.dart:26-62</td>
+    </tr>
+    <tr>
+      <td class="id">M6</td>
+      <td><span class="issue">No iOS privacy manifest</span><br>
+        Required-reason API declarations are missing, which is a practical App Store rejection risk.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td class="ev">no <code>PrivacyInfo.xcprivacy</code> in the repository</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Verified clean</h2>
+<ul>
+  <li>No service-role key or private key in git history. The <code>-S</code> matches were code strings inside the Edge Functions.</li>
+  <li>The Supabase key in <code>app_constants.dart</code> decodes to <code>role: anon</code> — public by design, not a leaked secret. RLS is therefore the only security boundary.</li>
+  <li>Auth error messages for owner login are generic (no account enumeration).</li>
+  <li>The <code>delete-account</code> function correctly verifies the caller's JWT before acting.</li>
+</ul>
+
+<h2>Required before launch — in order</h2>
+<ol>
+  <li><strong>Server-side payment verification + column-level grants</strong> (C1). Add a <code>verify-payment</code> Edge Function (HMAC-SHA256 of <code>order_id|payment_id</code>) or a Razorpay webhook; revoke <code>UPDATE</code> on billing columns from <code>authenticated</code>.</li>
+  <li><strong>Real upload keystore</strong> (C2): <code>key.properties</code> + <code>signingConfigs.release</code>; never commit it.</li>
+  <li><strong>Version the schema and audit policies</strong> (C3): <code>supabase db pull</code> into <code>supabase/migrations/</code>, then run the checks in the appendix.</li>
+  <li><strong>Private bucket + signed URLs</strong> (C4), issued only after server-side code validation.</li>
+  <li><strong>8+ character expiring codes</strong>, hashed at rest, with per-IP/per-code attempt lockout (C5).</li>
+  <li><strong>Resolve store policy</strong> (H4), remove unused permissions (H5), complete the privacy policy and Data Safety form (H2), add <code>PrivacyInfo.xcprivacy</code> (M6).</li>
+  <li><strong>Make deletion real</strong> (H1, M4) or disclose soft-delete and add a purge job.</li>
+  <li><strong>Harden the notification function and rate limits</strong> (H3, H7, M5); fix or qualify the "tamper-proof" claim (C6).</li>
+</ol>
+
+<div class="footer">
+  Static review only. Database policies, RPC definitions, triggers, bucket flags and Razorpay webhook
+  configuration were not available in the repository and are listed as unverified in C3/C4. No live
+  endpoint was queried for this report. Prepared for the SahiReport maintainers.
+</div>
+
+<div class="pagebreak"></div>
+
+<h2>Appendix — Verification SQL (run in Supabase SQL Editor)</h2>
+<p class="note">Run against a staging project first. Expected safe results: every table with <code>relrowsecurity = true</code>;
+zero policies granting <code>anon</code>; no <code>UPDATE</code> on billing columns; <code>login_*</code> functions
+<code>prosecdef = true</code> and filtering <code>is_active</code>; storage bucket <code>public = false</code>.</p>
+
+<pre>-- 1. Is RLS enabled on every table?
+select relname, relrowsecurity
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r'
+order by 1;
+
+-- 2. Every policy that grants the anon role
+select tablename, policyname, cmd, roles::text, qual, with_check
+from pg_policies
+where schemaname = 'public' and 'anon' = any(roles)
+order by 1, 2;
+
+-- 3. Can an owner rewrite their own billing columns?
+select grantee, privilege_type, column_name
+from information_schema.column_privileges
+where table_name = 'owners'
+  and grantee in ('anon', 'authenticated')
+  and privilege_type = 'UPDATE';
+
+-- 4. Are the RPCs SECURITY DEFINER, and do they check is_active?
+select p.proname, p.prosecdef, pg_get_functiondef(p.oid)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('login_with_code', 'login_co_owner_with_code',
+                    'submit_report', 'add_submission_image',
+                    'get_user_submissions', 'generate_access_code');
+
+-- 5. Is the bucket public, and who can write?
+select id, name, public from storage.buckets;
+select policyname, cmd, roles::text, qual, with_check
+from pg_policies
+where schemaname = 'storage' and tablename = 'objects';</pre>
+
+<h2>Golden test (staging only)</h2>
+<p>Sign in as an ordinary owner, then from the debug console run:</p>
+<pre>update owners
+set plan_type = 'pro', pro_project_slots = 999
+where id = auth.uid();</pre>
+<p class="note">If this succeeds, C1 is confirmed exploitable in production. It must fail with a
+permission error once column-level grants are in place.</p>
+
+<h2>Severity legend</h2>
+<ul>
+  <li><span class="sev s-critical">Critical</span> — exploitable now; enables data breach, free entitlements or unrecoverable key compromise.</li>
+  <li><span class="sev s-high">High</span> — likely exploitation or a hard store/legal rejection; fix before launch.</li>
+  <li><span class="sev s-medium">Medium</span> — real impact but needs a specific condition or an insider; fix in the first release window.</li>
+</ul>
+
+</body>
+</html>

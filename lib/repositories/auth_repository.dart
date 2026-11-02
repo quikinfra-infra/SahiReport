@@ -214,6 +214,15 @@ class AuthRepository {
     return ProjectUserModel.fromCodeLogin(data, code.toUpperCase().trim());
   }
 
+  // ── Owner: Trigger hard account deletion via Edge Function ─
+  // Calls the delete-account Edge Function which purges all owner data
+  // and permanently deletes the Supabase Auth user record. This must be
+  // called with a valid owner Auth session (before logout). Safe to fail —
+  // pg_cron will clean up accounts where deleted_at > 30 days.
+  Future<void> triggerAccountDeletion() async {
+    await supabase.functions.invoke('delete-account');
+  }
+
   // ── Auth state stream ─────────────────────────────────────
   Stream<AuthState> get authStateStream => supabase.auth.onAuthStateChange;
 

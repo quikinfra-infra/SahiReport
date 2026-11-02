@@ -1,4 +1,5 @@
 // lib/providers/auth_provider.dart
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/auth_repository.dart';
@@ -372,12 +373,26 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
     state = const AuthSessionState(userType: AuthUserType.none);
   }
 
-  // ── Owner: Soft-delete account ─────────────────────────────
+  // ── Owner: Soft-delete account ─────────────────────────
+  // Marks account pending deletion (30-day grace), then immediately
+  // calls the delete-account Edge Function for a hard purge.
+  // A pg_cron job is also configured as a safety net.
   Future<void> softDeleteAccount() async {
     final owner = state.owner;
     if (owner == null || state.isCoOwner) return;
+
+    // Step 1: Mark as pending deletion (30-day grace period).
     await _repo.softDeleteAccount(owner.id);
     await _repo.logout();
+
+    // Step 2: Hard-delete via Edge Function (App Store/Play Store compliance).
+    try {
+      await _repo.triggerAccountDeletion();
+    } catch (e) {
+      // Non-critical: pg_cron will purge after 30 days regardless.
+      debugPrint('delete-account Edge Function failed (non-critical): $e');
+    }
+
     state = const AuthSessionState(
       userType: AuthUserType.none,
       pendingDeletion: false,

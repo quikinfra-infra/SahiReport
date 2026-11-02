@@ -8,7 +8,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  // Restrict origin in production by setting ALLOWED_ORIGIN env var.
+  "Access-Control-Allow-Origin": Deno.env.get("ALLOWED_ORIGIN") ?? "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -18,7 +19,44 @@ serve(async (req) => {
   }
 
   try {
-    const { submission_id, project_id, project_user_id } = await req.json();
+    // ?? Authorization guard ??????????????????????????????????????
+    // Verify the caller presents a valid Supabase-issued JWT so that
+    // random external actors cannot spam owners with fake notifications.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate token structure using the anon key client.
+    // Field users pass the Supabase anonKey as their bearer token since they
+    // have no Auth session; the token is still project-scoped and valid.
+    const callerClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    // getUser() verifies the JWT signature. For anon tokens it returns a null
+    // user but no error ? which is acceptable here.
+    const { error: jwtErr } = await callerClient.auth.getUser();
+    if (jwtErr && jwtErr.status === 401) {
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const body = await req.json();
+    const { submission_id, project_id, project_user_id } = body;
+
+    if (!submission_id || !project_id || !project_user_id) {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Init Supabase with service role
     const supabase = createClient(

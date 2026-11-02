@@ -67,6 +67,20 @@ class _FieldHomeScreenState extends ConsumerState<FieldHomeScreen> {
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
+      // ?? Security: reject mock/spoofed GPS coordinates ?????????
+      // isMocked is true when the user has enabled a "Fake GPS" /
+      // Developer Mock Location app. We refuse to stamp and submit
+      // fabricated coordinates so that the "GPS-Verified" claim holds.
+      if (pos.isMocked) {
+        setState(() {
+          _gpsError =
+              'Mock location detected. Please disable "Fake GPS" apps and retry.';
+          _gpsLoading = false;
+        });
+        return;
+      }
+
       setState(() {
         _position = pos;
         _gpsLoading = false;

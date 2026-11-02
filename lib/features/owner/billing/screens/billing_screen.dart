@@ -8,6 +8,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../providers/auth_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../repositories/auth_repository.dart';
 
 class BillingScreen extends ConsumerStatefulWidget {
@@ -46,30 +47,51 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<void> _onSuccess(PaymentSuccessResponse response) async {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
+
+    // Guard: all three fields must be present for a valid Razorpay response.
+    if (response.paymentId == null ||
+        response.orderId == null ||
+        response.signature == null) {
+      if (mounted) {
+        setState(() {
+          _paying = false;
+          _error = 'Incomplete payment response. Please contact support.';
+        });
+      }
+      return;
+    }
+
     try {
-      // Fetch current active slots so additional purchases accumulate properly
-      final currentRow = await supabase
-          .from('owners')
-          .select('pro_project_slots, pro_expires_at')
-          .eq('id', owner.id)
-          .single();
+      // ?? Server-side HMAC-SHA256 signature verification ????????
+      // The Edge Function (verify-payment) re-computes the expected
+      // signature using RAZORPAY_KEY_SECRET (never shipped in the app)
+      // and updates the DB only when the signatures match.
+      final result = await Supabase.instance.client.functions.invoke(
+        'verify-payment',
+        body: {
+          'razorpay_payment_id': response.paymentId,
+          'razorpay_order_id':   response.orderId,
+          'razorpay_signature':  response.signature,
+          'extra_projects':      _extraProjects,
+        },
+      );
 
-      final int existingSlots = (currentRow['pro_project_slots'] as int?) ?? 0;
-      final String? expiresStr = currentRow['pro_expires_at'] as String?;
-      final bool isStillValid = expiresStr != null &&
-          DateTime.parse(expiresStr).isAfter(DateTime.now().toUtc());
+      if (result.status != 200) {
+        final errorMsg =
+            (result.data as Map<String, dynamic>?)?['error'] as String? ??
+                'Payment verification failed. Contact support with ID: ${response.paymentId}';
+        if (mounted) {
+          setState(() {
+            _paying = false;
+            _error = errorMsg;
+          });
+        }
+        return;
+      }
 
-      final int updatedSlots =
-          (isStillValid ? existingSlots : 0) + _extraProjects;
-      final String newExpiry =
-      DateTime.now().toUtc().add(const Duration(days: 365)).toIso8601String();
-
-      await supabase.from('owners').update({
-        'plan_type': 'pro',
-        'pro_project_slots': updatedSlots,
-        'extra_projects_count': updatedSlots,
-        'pro_expires_at': newExpiry,
-      }).eq('id', owner.id);
+      final updatedSlots =
+          (result.data as Map<String, dynamic>?)?['updatedSlots'] as int? ??
+              _extraProjects;
 
       await ref.read(authProvider.notifier).refreshOwner();
 
@@ -81,7 +103,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       if (mounted) {
         setState(() {
           _paying = false;
-          _error = 'Payment received but plan update failed. '
+          _error = 'Payment received but verification failed. '
               'Contact support with payment ID: ${response.paymentId}';
         });
       }

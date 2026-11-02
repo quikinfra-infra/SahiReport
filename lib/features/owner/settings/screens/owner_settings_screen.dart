@@ -21,9 +21,9 @@ class OwnerSettingsScreen extends ConsumerWidget {
 
   // TODO: replace with your hosted policy URLs.
   static const String privacyPolicyUrl =
-      'https://YOUR-SITE.com/privacy-policy';
+      AppConstants.privacyPolicyUrl;
   static const String termsOfServiceUrl =
-      'https://YOUR-SITE.com/terms-of-service';
+      AppConstants.termsOfServiceUrl;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

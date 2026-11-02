@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SahiReport — Security &amp; Launch Readiness Report (Second Pass)</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm 12mm 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", -apple-system, Roboto, Arial, sans-serif;
+    color: #1e293b; font-size: 9.5pt; line-height: 1.45; margin: 0;
+  }
+  h1 { font-size: 20pt; margin: 0 0 2mm 0; color: #0f1f3d; letter-spacing: -0.3px; }
+  .sub { color: #64748b; font-size: 9pt; margin: 0 0 1mm 0; }
+  .meta { color: #64748b; font-size: 8.5pt; margin: 0 0 5mm 0; }
+  .verdict {
+    border-left: 4px solid #b91c1c; background: #fef2f2;
+    padding: 3.2mm 4mm; margin: 0 0 5mm 0; border-radius: 2px;
+  }
+  .verdict strong { color: #991b1b; font-size: 11pt; }
+  .verdict p { margin: 1.2mm 0 0 0; font-size: 9pt; color: #450a0a; }
+  .counts { display: flex; gap: 3mm; margin: 0 0 5mm 0; }
+  .count {
+    flex: 1; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 2.5mm 3mm; background: #f8fafc;
+  }
+  .count .n { font-size: 17pt; font-weight: 700; line-height: 1; }
+  .count .l { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+  .c-critical .n { color: #b91c1c; }
+  .c-high .n { color: #b45309; }
+  .c-medium .n { color: #1d4ed8; }
+  .c-low .n { color: #0f766e; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th {
+    background: #0f1f3d; color: #fff; text-align: left; font-size: 8.2pt;
+    text-transform: uppercase; letter-spacing: .4px; padding: 2.2mm 2.4mm; font-weight: 600;
+  }
+  td { padding: 2.2mm 2.4mm; border-bottom: 1px solid #e8edf3; vertical-align: top; }
+  tbody tr:nth-child(even) { background: #f8fafc; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+  .id { font-family: Consolas, "Courier New", monospace; font-weight: 700; white-space: nowrap; font-size: 8.6pt; }
+  .sev {
+    display: inline-block; padding: .7mm 2mm; border-radius: 10px;
+    font-size: 7.4pt; font-weight: 700; white-space: nowrap; text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .s-critical { background: #fee2e2; color: #991b1b; }
+  .s-high     { background: #fef3c7; color: #92400e; }
+  .s-medium   { background: #dbeafe; color: #1e40af; }
+  .s-low      { background: #ccfbf1; color: #115e59; }
+  .tag {
+    display: inline-block; padding: .5mm 1.8mm; border-radius: 3px;
+    font-size: 7.2pt; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+  }
+  .t-new   { background: #dcfce7; color: #166534; }
+  .t-con   { background: #e2e8f0; color: #334155; }
+  .t-upg   { background: #fde68a; color: #78350f; }
+  .ev { font-family: Consolas, "Courier New", monospace; font-size: 7.8pt; color: #475569; }
+  .issue { font-weight: 600; color: #0f172a; }
+  .note { color: #64748b; font-size: 8.4pt; margin-top: 1mm; }
+  h2 { font-size: 12pt; color: #0f1f3d; margin: 7mm 0 2.5mm 0; }
+  h3 { font-size: 10pt; color: #0f1f3d; margin: 5mm 0 1.5mm 0; }
+  ol, ul { margin: 0 0 0 5mm; padding: 0; }
+  li { margin-bottom: 1.4mm; }
+  code { font-family: Consolas, "Courier New", monospace; background: #f1f5f9; padding: 0 1mm; border-radius: 2px; font-size: 8.2pt; }
+  pre {
+    font-family: Consolas, "Courier New", monospace; font-size: 7.6pt; line-height: 1.4;
+    background: #0f1f3d; color: #e2e8f0; padding: 3mm 3.5mm; border-radius: 4px;
+    white-space: pre-wrap; margin: 0 0 3mm 0;
+  }
+  .footer { margin-top: 5mm; padding-top: 2.5mm; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 7.8pt; }
+  .pagebreak { break-before: page; page-break-before: always; }
+  .box { border: 1px solid #e2e8f0; border-radius: 4px; padding: 3mm 4mm; margin: 0 0 4mm 0; background: #f8fafc; }
+  .box.warn { border-left: 3px solid #b45309; background: #fffbeb; }
+  .box.bad { border-left: 3px solid #b91c1c; background: #fef2f2; }
+  .box.ok { border-left: 3px solid #15803d; background: #f0fdf4; }
+</style>
+</head>
+<body>
+
+<h1>SahiReport — Security &amp; Launch Readiness Report</h1>
+<p class="sub">Second pass · Flutter client + Supabase backend · field-reporting application</p>
+<p class="meta">
+  Repository: <strong>SahiReport</strong> &nbsp;·&nbsp; Commit: <strong>22cb38d</strong> &nbsp;·&nbsp;
+  Version: 1.0.0+1 &nbsp;·&nbsp; Review date: 31 October 2026 &nbsp;·&nbsp;
+  Method: static review of <code>lib/</code>, Edge Functions, platform config, git history; automated scan attempted and blocked (see §5)
+</p>
+
+<div class="verdict">
+  <strong>Verdict: NOT ready for public launch.</strong>
+  <p>Six findings independently block release. The payment flow is more broken than the first pass reported:
+  there is no Razorpay order, so server-side signature verification is impossible even if written today, and the
+  amount is chosen by the client. Separately, "Delete account" destroys the login while leaving every submission
+  and photo in place, then silently swallows the failures. Do not switch Razorpay to a live key, and do not
+  publish the Data Safety form, until C1/N1 and N2 are closed.</p>
+</div>
+
+<div class="counts">
+  <div class="count c-critical"><div class="n">6</div><div class="l">Critical</div></div>
+  <div class="count c-high"><div class="n">10</div><div class="l">High</div></div>
+  <div class="count c-medium"><div class="n">8</div><div class="l">Medium</div></div>
+  <div class="count c-low"><div class="n">2</div><div class="l">Low</div></div>
+  <div class="count"><div class="n">26</div><div class="l">Total findings</div></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:6%">ID</th>
+      <th style="width:45%">Finding</th>
+      <th style="width:11%">Severity</th>
+      <th style="width:8%">Status</th>
+      <th style="width:30%">Evidence</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="id">C1</td>
+      <td><span class="issue">Pro entitlement written by the client after payment</span><br>
+        The app sets <code>plan_type</code>, <code>pro_project_slots</code> and <code>pro_expires_at</code>
+        itself. A modified client grants unlimited Pro for free.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-upg">Upgraded</span></td>
+      <td class="ev">billing_screen.dart:67-72</td>
+    </tr>
+    <tr>
+      <td class="id">N1</td>
+      <td><span class="issue">No Razorpay order and a client-chosen amount</span><br>
+        Checkout opens without <code>order_id</code>, so no <code>razorpay_signature</code> is ever issued and
+        verification is impossible. <code>amount</code> is computed on the device.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">billing_screen.dart:28, 111-122</td>
+    </tr>
+    <tr>
+      <td class="id">N2</td>
+      <td><span class="issue">Account deletion deletes the login and keeps the data</span><br>
+        <code>supabase-js</code> never throws on a failed delete, so the <code>catch</code> blocks cannot fire.
+        All five deletes can fail silently, then the auth user is removed anyway.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">delete-account/index.ts:72-92</td>
+    </tr>
+    <tr>
+      <td class="id">C2</td>
+      <td><span class="issue">Release builds signed with the debug keystore</span><br>
+        The debug key is public. Play rejection risk; third parties can sign an "update" Android accepts.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">android/app/build.gradle.kts:33</td>
+    </tr>
+    <tr>
+      <td class="id">C3</td>
+      <td><span class="issue">RLS policies absent from the repository</span><br>
+        Every code-user query reaches PostgREST as <code>anon</code> with a key shipped in the APK. RLS is the
+        only boundary and it cannot be audited from source.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">no <code>supabase/migrations/</code>, no <code>config.toml</code></td>
+    </tr>
+    <tr>
+      <td class="id">C4</td>
+      <td><span class="issue">Public bucket with unauthenticated uploads</span><br>
+        Photos upload with no session and are read through <code>getPublicUrl()</code>. Anyone with the anon key
+        can write, and every URL is permanent.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">submission_repository.dart:167-174, 222-230</td>
+    </tr>
+    <tr>
+      <td class="id">C5</td>
+      <td><span class="issue">Guessable co-owner code, no expiry, no throttle</span><br>
+        <code>ADMN-</code> + 4 characters from 32 symbols = 1,048,576 combinations, stored plaintext, accepted by
+        an anon-callable RPC with no attempt limit.</td>
+      <td><span class="sev s-critical">Critical</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">co_owner_repository.dart:9-15; auth_repository.dart:196-204</td>
+    </tr>
+    <tr>
+      <td class="id">C6</td>
+      <td><span class="issue">"GPS-verified / tamper-proof" asserted entirely by the client</span><br>
+        Coordinates, timestamp and the photo stamp are produced on-device. The commercial claim has no
+        server-side trust boundary.</td>
+      <td><span class="sev s-high">High — trust</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">image_stamp_service.dart; submit_report params</td>
+    </tr>
+    <tr>
+      <td class="id">H1</td>
+      <td><span class="issue">"Delete account" only soft-deletes; hard-delete never invoked</span><br>
+        Flags are set and the user is signed out; <code>delete-account</code> is never called from the app.</td>
+      <td><span class="sev s-high">High — legal</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">auth_repository.dart:183-193; profile_edit_screen.dart</td>
+    </tr>
+    <tr>
+      <td class="id">H2</td>
+      <td><span class="issue">Privacy policy is an unfilled template and contradicts the app</span><br>
+        Placeholders remain, and it states data is not used for third-party advertising while AdMob ships.</td>
+      <td><span class="sev s-high">High — legal</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">Privacy Policy.txt:27-44, 89-90, 101</td>
+    </tr>
+    <tr>
+      <td class="id">H3</td>
+      <td><span class="issue">Notification function callable by anyone</span><br>
+        Uses the service role and trusts the body. Any anon-key holder can trigger pushes.</td>
+      <td><span class="sev s-high">High</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">send-notification/index.ts:15-27</td>
+    </tr>
+    <tr>
+      <td class="id">N3</td>
+      <td><span class="issue">Notification function trusts <code>project_id</code> independently of <code>submission_id</code></span><br>
+        The mute check and deep-link route use the caller-supplied project, so muting can be bypassed. The 404/200
+        difference is a submission-existence oracle.</td>
+      <td><span class="sev s-high">High</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">send-notification/index.ts:21, 49-54, 104</td>
+    </tr>
+    <tr>
+      <td class="id">N4</td>
+      <td><span class="issue">Plan limits enforced only in the UI</span><br>
+        User-per-project cap is a client-side count; <code>freePlanMaxSubmissions</code> is referenced nowhere.
+        Direct PostgREST inserts bypass both.</td>
+      <td><span class="sev s-high">High — cost</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">project_user_repository.dart:58-71; app_constants.dart:44</td>
+    </tr>
+    <tr>
+      <td class="id">H4</td>
+      <td><span class="issue">Digital goods sold through Razorpay inside the app</span><br>
+        Google Play requires Play Billing; Apple requires IAP. Removal risk as shipped.</td>
+      <td><span class="sev s-high">High — store</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">billing_screen.dart:103-125</td>
+    </tr>
+    <tr>
+      <td class="id">H5</td>
+      <td><span class="issue">Background location declared but never used</span><br>
+        Only <code>getCurrentPosition</code> is called. Play needs a declaration and video; Apple rejects unused
+        "Always".</td>
+      <td><span class="sev s-high">High — store</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">AndroidManifest.xml:9; ios/Runner/Info.plist:35</td>
+    </tr>
+    <tr>
+      <td class="id">H6</td>
+      <td><span class="issue">Owner session stored unencrypted; backups enabled</span><br>
+        <code>flutter_secure_storage</code> is declared and never used (0 references). No <code>allowBackup</code>
+        flag.</td>
+      <td><span class="sev s-high">High</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">pubspec.yaml; AndroidManifest.xml:26-30</td>
+    </tr>
+    <tr>
+      <td class="id">H7</td>
+      <td><span class="issue">Free-tier submission cap not enforced</span><br>
+        <code>freePlanMaxSubmissions = 50</code> is dead code. No throttling anywhere.</td>
+      <td><span class="sev s-high">High — cost</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">app_constants.dart:44</td>
+    </tr>
+    <tr>
+      <td class="id">N5</td>
+      <td><span class="issue">No gitignore entry for signing material</span><br>
+        <code>key.properties</code> and <code>*.jks</code> are unmatched, so the C2 fix will be committed by
+        default.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">.gitignore (no key/secret rules)</td>
+    </tr>
+    <tr>
+      <td class="id">N6</td>
+      <td><span class="issue">Firebase browser key unrestricted</span><br>
+        Public by design, but without referrer restriction and App Check it can be used to burn quota.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">web/index.html:28; firebase-messaging-sw.js:13</td>
+    </tr>
+    <tr>
+      <td class="id">M1</td>
+      <td><span class="issue">Profile update writes NULL into omitted columns</span></td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">auth_repository.dart:146-157</td>
+    </tr>
+    <tr>
+      <td class="id">M2</td>
+      <td><span class="issue">Image upload failures swallowed</span><br>
+        A "successful" report can contain zero photos.</td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">submission_repository.dart:184-186, 239-241</td>
+    </tr>
+    <tr>
+      <td class="id">M3</td>
+      <td><span class="issue">Co-owner can reach the billing route</span></td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">app_router.dart:45-98</td>
+    </tr>
+    <tr>
+      <td class="id">M4</td>
+      <td><span class="issue">Deletion never removes Storage objects</span></td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">delete-account/index.ts:65-91</td>
+    </tr>
+    <tr>
+      <td class="id">M5</td>
+      <td><span class="issue">No server-side OTP send throttling</span></td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">confirm_email_screen.dart:26-62</td>
+    </tr>
+    <tr>
+      <td class="id">M6</td>
+      <td><span class="issue">No iOS privacy manifest</span></td>
+      <td><span class="sev s-medium">Medium</span></td>
+      <td><span class="tag t-con">Confirmed</span></td>
+      <td class="ev">no <code>PrivacyInfo.xcprivacy</code></td>
+    </tr>
+    <tr>
+      <td class="id">N7</td>
+      <td><span class="issue">Edge Functions echo internal errors to the caller</span></td>
+      <td><span class="sev s-low">Low</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">send-notification:136; delete-account:95</td>
+    </tr>
+    <tr>
+      <td class="id">N8</td>
+      <td><span class="issue"><code>requestLegacyExternalStorage</code> enabled</span><br>
+        Opts out of scoped storage on Android 10.</td>
+      <td><span class="sev s-low">Low</span></td>
+      <td><span class="tag t-new">New</span></td>
+      <td class="ev">AndroidManifest.xml:30</td>
+    </tr>
+  </tbody>
+</table>
+
+<p class="note">Status: <em>New</em> — found in this pass. <em>Confirmed</em> — re-verified at 22cb38d, unchanged.
+<em>Upgraded</em> — previously reported, now understood to be more severe.</p>
+
+<div class="pagebreak"></div>
+
+<h2>1 · Detail on the new findings</h2>
+
+<h3>N1 — No Razorpay order, client-chosen amount</h3>
+<pre>// lib/features/owner/billing/screens/billing_screen.dart
+final options = {
+  'key': AppConstants.razorpayKeyId,
+  'amount': _totalPaise,          // line 28: _extraProjects * _pricePerProject
+  'name': AppConstants.appName,
+  // no 'order_id'
+};
+_razorpay.open(options);</pre>
+<p>Razorpay returns <code>razorpay_signature</code> only for checkouts opened against a server-created
+<strong>order</strong>. With no order, the success callback proves only that the SDK reached a success state.
+Even a correct <code>verify-payment</code> function added later could not validate these payments, because there
+is no <code>order_id</code> to include in the HMAC.</p>
+<p><strong>Impact:</strong> a modified client pays an arbitrary amount (including ₹0 via a tampered callback) and
+is then entitled to grant itself Pro, because C1 lets it write the entitlement columns.</p>
+<p><strong>Fix:</strong> create the order server-side (<code>POST /orders</code> with the price from a server
+table), return <code>order_id</code> to the app, pass it to checkout, and grant entitlement only from a function
+that verifies <code>HMAC_SHA256(order_id|payment_id, key_secret)</code> and writes the row with the service role.
+Revoke <code>UPDATE</code> on the billing columns from <code>authenticated</code>.</p>
+
+<h3>N2 — Deletion deletes the login, keeps the data</h3>
+<pre>// supabase/functions/delete-account/index.ts
+for (const table of tables) {
+  try {
+    await admin.from(table).delete().eq('owner_id', ownerId);   // returns { data, error }
+  } catch (_) {                                                 // never runs
+    // ignore and continue
+  }
+}
+// ...
+const { error: delErr } = await admin.auth.admin.deleteUser(ownerId);</pre>
+<p><code>supabase-js</code> resolves failed PostgREST calls with <code>{ error }</code>; it does not throw. The
+<code>catch</code> is therefore unreachable and every failure is discarded. The auth user is removed on line 88
+regardless, so the account can no longer be signed into to retry.</p>
+<p>The table list also deletes <code>submission_images</code> by <code>owner_id</code>. Images are keyed by
+<code>submission_id</code>; if that column does not exist, the delete fails on every call and is ignored.</p>
+<p><strong>Impact:</strong> the user believes their data is gone, the policy says it is gone, and every submission
+and photo URL stays live. This is a DPDP Act exposure, not a cosmetic bug.</p>
+<p><strong>Fix:</strong> check <code>error</code> on each call and abort on failure; delete children by
+<code>submission_id</code> (join through <code>submissions</code>); remove Storage objects; delete the auth user
+last and only after everything else succeeded. Return a machine-readable status instead of a bare
+<code>{ success: true }</code>.</p>
+
+<h3>N3 — Notification function trusts two unrelated identifiers</h3>
+<pre>const { submission_id, project_id, project_user_id } = await req.json();   // line 21
+// mute check uses the caller-supplied project:
+.eq("project_id", project_id)                                             // line 53
+// deep link built from the same value:
+route: `/owner/project/${project_id}`                                     // line 104</pre>
+<p>Nothing ties <code>project_id</code> to the submission row. An anon caller can therefore pass a project that is
+not muted and bypass the owner's mute setting, or walk submission IDs and use the 404-vs-200 difference to
+confirm which submissions exist.</p>
+<p><strong>Fix:</strong> read <code>project_id</code> and <code>owner_id</code> from the submission row only;
+require proof of the field user's access code (or a short-lived token minted by <code>submit_report</code>) before
+sending; rate-limit per submission and per owner; return a uniform response for unknown IDs.</p>
+
+<h3>N4 — Plan limits live only in the UI</h3>
+<pre>// lib/repositories/project_user_repository.dart
+final existingActive = await supabase.from('project_users')
+    .select('id').eq('project_id', projectId).eq('is_active', true);
+if ((existingActive as List).length >= AppConstants.freePlanMaxUsersPerProject) { ... }</pre>
+<p>This is a client-side count. Any holder of the anon key can insert <code>project_users</code> rows directly.
+<code>freePlanMaxSubmissions</code> is not referenced anywhere in <code>lib/</code>.</p>
+<p><strong>Fix:</strong> enforce in a trigger or in the RPC that creates users and submissions, counting rows
+server-side.</p>
+
+<h3>N5 / N6 / N7 / N8</h3>
+<ul>
+  <li><strong>N5</strong> — <code>.gitignore</code> contains no <code>key.properties</code> or <code>*.jks</code>
+  rule. Add both, plus <code>*.keystore</code>, before doing the C2 fix.</li>
+  <li><strong>N6</strong> — the Firebase browser key is identical in <code>web/index.html</code> and
+  <code>web/firebase-messaging-sw.js</code>. Restrict it to your HTTP referrers in Google Cloud Console and turn
+  on App Check.</li>
+  <li><strong>N7</strong> — <code>send-notification:136</code> returns <code>error.message</code> and
+  <code>delete-account:95</code> returns <code>String(e)</code>. Log internally, return a generic message.</li>
+  <li><strong>N8</strong> — <code>android:requestLegacyExternalStorage="true"</code> disables scoped storage on
+  Android 10. Remove it; nothing in the app needs shared external storage.</li>
+</ul>
+
+<div class="pagebreak"></div>
+
+<h2>2 · Automated scan attempt (and why the result is not evidence of safety)</h2>
+
+<p>A Strix 1.7.0 scan was run against a clean worktree of <code>22cb38d</code> with Docker isolation. Five
+attempts were made across three providers. <strong>None produced a usable report.</strong> The "0 vulnerabilities"
+output from these runs must not be read as a clean bill of health — in each case nothing was actually tested.</p>
+
+<table>
+  <thead>
+    <tr><th style="width:16%">Model</th><th style="width:24%">Outcome</th><th style="width:60%">Cause</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="id">gemini-2.5-flash</td><td>Model refused</td><td>Model retired for new API keys.</td></tr>
+    <tr><td class="id">gemini-3.5-flash</td><td>Quota exhausted</td><td>Free tier allows 20 requests per model per day; a scan needs hundreds.</td></tr>
+    <tr><td class="id">mistral-large-4</td><td>HTTP 429 on first call</td><td>Free tier caps at 20,000 tokens/minute. A single Strix prompt exceeds that ceiling.</td></tr>
+    <tr><td class="id">codestral-latest</td><td>Completed, 0 findings</td><td>625K tokens/minute available, but the model produced 4.7K output tokens against 3.2M input — it read files without reasoning. Agents recorded no coverage.</td></tr>
+    <tr><td class="id">ministral-14b-latest</td><td>Max turns, 0 findings</td><td>Same pattern on a narrowed three-area scope.</td></tr>
+  </tbody>
+</table>
+
+<div class="box warn">
+  <strong>Interpretation.</strong> An agentic scanner needs a model that can hold a large system prompt and plan
+  across many tool calls. Free API tiers either cap requests per day (Gemini), cap tokens per minute below a
+  single prompt (Mistral large), or route to models that do not perform agentic reasoning (Codestral, Ministral).
+  A paid key with a real throughput allocation, or a Strix Cloud credit balance, is the only way to get a
+  machine-validated pass.
+</div>
+
+<div class="box ok">
+  <strong>What this does not change.</strong> The findings in §1 are code-level facts and were verified by reading
+  the source at <code>22cb38d</code>. A scanner would not have been able to validate them further anyway: the
+  live Supabase project was out of scope (no credentials, and probing it without consent is not acceptable), so
+  any "proof of concept" would have been a code excerpt either way.
+</div>
+
+<h2>3 · Required before launch — in order</h2>
+<ol>
+  <li><strong>Rebuild the payment flow (N1 + C1).</strong> Server-created order, server-verified signature,
+      server-written entitlement, column-level grants revoked. Until this exists, do not change the Razorpay key
+      from <code>rzp_test_</code> to live.</li>
+  <li><strong>Make deletion real (N2 + H1 + M4).</strong> Check every error, delete children and Storage objects,
+      remove the auth user last, and call the function from the app instead of soft-deleting.</li>
+  <li><strong>Real upload keystore (C2 + N5).</strong> <code>key.properties</code>, signing config, gitignore
+      rules, and a Play App Signing enrolment.</li>
+  <li><strong>Version the schema and audit RLS (C3).</strong> <code>supabase db pull</code> into
+      <code>supabase/migrations/</code>, then run the queries in Appendix A.</li>
+  <li><strong>Private bucket and signed URLs (C4),</strong> issued only after server-side validation of the
+      uploader's code.</li>
+  <li><strong>8+ character expiring codes, hashed at rest, attempt lockout (C5).</strong></li>
+  <li><strong>Harden the notification function (H3 + N3)</strong> and move plan limits server-side (N4 + H7).</li>
+  <li><strong>Store policy and legal (H2, H4, H5, M6).</strong> Play Billing or external sale, remove the unused
+      background-location permission, complete the privacy policy and Data Safety form.</li>
+</ol>
+
+<div class="pagebreak"></div>
+
+<h2>Appendix A — Verification SQL (run in the Supabase SQL Editor, staging first)</h2>
+<p class="note">Expected safe results: every table <code>relrowsecurity = true</code>; no policy granting
+<code>anon</code>; no <code>UPDATE</code> on billing columns; RPCs <code>prosecdef = true</code> and filtering
+<code>is_active</code>; bucket <code>public = false</code>.</p>
+
+<pre>-- 1. Is RLS enabled on every table?
+select relname, relrowsecurity
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r'
+order by 1;
+
+-- 2. Every policy that grants the anon role
+select tablename, policyname, cmd, roles::text, qual, with_check
+from pg_policies
+where schemaname = 'public' and 'anon' = any(roles)
+order by 1, 2;
+
+-- 3. Can an owner rewrite their own billing columns?
+select grantee, privilege_type, column_name
+from information_schema.column_privileges
+where table_name = 'owners'
+  and grantee in ('anon', 'authenticated')
+  and privilege_type = 'UPDATE';
+
+-- 4. Are the RPCs SECURITY DEFINER, and do they check is_active?
+select p.proname, p.prosecdef, pg_get_functiondef(p.oid)
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('login_with_code', 'login_co_owner_with_code',
+                    'submit_report', 'add_submission_image',
+                    'get_user_submissions', 'generate_access_code');
+
+-- 5. Is the bucket public, and who can write?
+select id, name, public from storage.buckets;
+select policyname, cmd, roles::text, qual, with_check
+from pg_policies
+where schemaname = 'storage' and tablename = 'objects';
+
+-- 6. Does submission_images even have an owner_id column? (N2)
+select column_name from information_schema.columns
+where table_schema = 'public' and table_name = 'submission_images';</pre>
+
+<h2>Golden tests (staging only)</h2>
+<pre>-- A. Entitlement tampering (C1). Run as an ordinary owner from the debug console.
+update owners set plan_type = 'pro', pro_project_slots = 999 where id = auth.uid();
+-- Must fail with a permission error once column-level grants are in place.
+
+-- B. Limit bypass (N4). As an owner, insert a 6th project_user for one project.
+insert into project_users (project_id, owner_id, name, access_code, is_active)
+values ('&lt;project-uuid&gt;', auth.uid(), 'extra', 'ADMN-XXXX', true);
+-- Must be rejected by a server-side trigger once N4 is fixed.
+
+-- C. Deletion completeness (N2). Delete an account, then check for orphans.
+select count(*) from submissions  where owner_id = '&lt;deleted-owner-uuid&gt;';
+select count(*) from submission_images si
+  join submissions s on s.id = si.submission_id
+ where s.owner_id = '&lt;deleted-owner-uuid&gt;';
+-- Both must be zero.</pre>
+
+<h2>Severity legend</h2>
+<ul>
+  <li><span class="sev s-critical">Critical</span> — exploitable now; enables data breach, free entitlements, or
+  a compliance failure that cannot be undone.</li>
+  <li><span class="sev s-high">High</span> — likely exploitation or a hard store/legal rejection; fix before
+  launch.</li>
+  <li><span class="sev s-medium">Medium</span> — real impact but needs a specific condition or an insider; fix in
+  the first release window.</li>
+  <li><span class="sev s-low">Low</span> — hygiene; fix when convenient.</li>
+</ul>
+
+<div class="footer">
+  Static review of commit 22cb38d. Database policies, RPC bodies, trigger definitions, bucket flags and Razorpay
+  webhook configuration were not available in the repository and are listed as unverified in C3, C4 and N2. No
+  live endpoint was queried. Automated scanning was attempted and blocked by provider limits; see §2. Prepared for
+  the SahiReport maintainers.
+</div>
+
+</body>
+</html>

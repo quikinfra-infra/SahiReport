@@ -1,0 +1,48 @@
+---
+title: SahiReport Flutter App Architecture
+---
+flowchart TD
+    subgraph UserRoles["USER ROLES"]
+        Owner["OWNER<br>- Project Mgmt<br>- Billing<br>- Profile"]
+        FieldUsers["FIELD USERS/CO-OWNERS<br>- Field Submissions<br>- GPS Verification<br>- Report Submission"]
+    end
+
+    subgraph FrontendUI["FRONTEND UI LAYER"]
+        Router["App Router (GoRouter)<br>Auth → Owner Dashboard → Billing/Profile → Project Details<br>Auth → Field User Screen → Submissions"]
+        StateMgr["State Management (Riverpod)<br>- AuthNotifier (owner, co-owner, field user auth)<br>- Project/Report Data Providers"]
+    end
+
+    subgraph CoreServices["CORE SERVICES LAYER"]
+        Geolocator["Geolocator<br>(GPS Verif.)"]
+        PDFExcel["PDF/Excel Export"]
+        Razorpay["Razorpay (Payments)"]
+        FirebaseMsg["Firebase Messaging"]
+        ImageStamp["Image Stamping Service"]
+        GoogleAds["Google Mobile Ads"]
+    end
+
+    subgraph DataLayer["DATA LAYER & STORAGE"]
+        OfflineQueue["Offline Queue<br>(SQLite/sqflite)<br>- Form submissions"]
+        SupabaseDB["Supabase DB<br>- Projects, Reports<br>- Users, Billing"]
+    end
+
+    subgraph ExternalIntegrations["EXTERNAL INTEGRATIONS"]
+        SupabaseAuth["Supabase Auth & DB"]
+        FirebaseCloudM["Firebase Cloud Mess."]
+        RazorpayPay["Razorpay Payments"]
+        ImageStampSVC["Image Stamping SVC"]
+    end
+
+    UserRoles --> FrontendUI
+    FrontendUI --> CoreServices
+    CoreServices --> DataLayer
+    DataLayer --> ExternalIntegrations
+
+    OffSync["Offline Sync Mechanism"]
+    OfflineQueue <-->|Online Sync| SupabaseDB
+    
+    style UserRoles fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
+    style FrontendUI fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    style CoreServices fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style DataLayer fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style ExternalIntegrations fill:#fce4ec,stroke:#e91e63,stroke-width:2px
