@@ -187,6 +187,19 @@ class PDFDocument {
     this.currentY -= 2;
   }
 
+  addFileEntry(filePath, description) {
+    this.ensureSpace(28);
+    // Gray badge for path
+    this.currentPage.commands.push(`0.94 0.96 0.98 rg`);
+    this.currentPage.commands.push(`50 ${this.currentY - 3} ${this.contentWidth} 16 re f`);
+    this.currentPage.commands.push(`0.1 0.2 0.45 rg`);
+    this.currentPage.commands.push(`BT /F3 8.5 Tf 56 ${this.currentY} Td (${this.escapeText(filePath)}) Tj ET`);
+    this.currentY -= 17;
+
+    // Description
+    this.addParagraph(description, 'F1', 8.8, 12);
+  }
+
   addCodeBlock(codeLines) {
     const blockHeight = codeLines.length * 11 + 12;
     this.ensureSpace(blockHeight + 10);
@@ -240,7 +253,6 @@ class PDFDocument {
 
       currentX = startX;
       for (let c = 0; c < rows[r].length; c++) {
-        // Text styling based on content
         const cell = rows[r][c];
         if (c === 0) {
           this.currentPage.commands.push(`0.1 0.2 0.4 rg`);
@@ -343,8 +355,8 @@ const doc = new PDFDocument();
 
 // Cover Header
 doc.addTitle("SahiReport - Security Audit & Remediation");
-doc.addSubtitle("Technical Analysis, Step-by-Step Fixes & Hardening Guide");
-doc.addParagraph("Date: November 2026  |  Scope: Client Application, Supabase Backend & Platform Manifests");
+doc.addSubtitle("Technical Analysis, Step-by-Step Fixes & Codebase Changes Map");
+doc.addParagraph("Date: November 2026  |  Scope: Client Application, Supabase Backend, Manifests & Migrations");
 
 doc.addSectionHeading("1. Executive Summary");
 doc.addParagraph("SahiReport underwent a comprehensive security review covering mobile client logic, backend database access controls (Row-Level Security), cryptographic payment verification, GPS tamper protection, and app store compliance standards. All identified vulnerabilities have been remediated across the codebase.");
@@ -434,8 +446,122 @@ doc.addSectionHeading("6. Workflow & Storage Optimization");
 doc.addBullet("Registration OTP Flow", "Fixed owner_register_screen.dart to redirect users to ConfirmEmailScreen rather than expecting an SMS OTP that was never dispatched.");
 doc.addBullet("Storage Cleanup", "Updated deleteProject() in ProjectRepository to collect all image paths from submission_images and purge them from Supabase Storage before dropping the project row.");
 
-// Section 7: Deployment Instructions
-doc.addSectionHeading("7. Deployment & Verification Checklist");
+// Section 7: Codebase Changes Directory & File Map
+doc.addSectionHeading("7. Codebase Changes Directory & File Map");
+doc.addParagraph("The following is the complete, folder-by-folder inventory of all source files modified or created to remediate vulnerabilities and ensure store compliance:");
+
+doc.addSubheading("Folder: lib/ (Application Source Code)");
+
+doc.addFileEntry(
+  "lib/core/constants/app_constants.dart",
+  "Added centralized production legal URLs (privacyPolicyUrl, termsOfServiceUrl) replacing hardcoded placeholder strings throughout the application."
+);
+
+doc.addFileEntry(
+  "lib/features/auth/screens/code_login_screen.dart",
+  "Updated access code segment width and length validation to support 8-character suffixes for the upgraded high-entropy Co-Owner access codes (ADMN-XXXXXXXX)."
+);
+
+doc.addFileEntry(
+  "lib/features/auth/screens/owner_register_screen.dart",
+  "Corrected registration redirection bug: routes newly registered owners to ConfirmEmailScreen (for Supabase email confirmation link) instead of waiting for an SMS OTP."
+);
+
+doc.addFileEntry(
+  "lib/features/field_user/screens/field_home_screen.dart",
+  "Integrated pos.isMocked hardware verification from Geolocator to detect and block Fake GPS and mock location spoofing apps."
+);
+
+doc.addFileEntry(
+  "lib/features/owner/billing/screens/billing_screen.dart",
+  "Eliminated client-side database updates on payment. Calls verify-payment Edge Function with payment ID, order ID, and signature for cryptographic server-side validation."
+);
+
+doc.addFileEntry(
+  "lib/features/owner/settings/screens/owner_settings_screen.dart",
+  "Connected legal and privacy policy links directly to AppConstants, removing placeholder YOUR-SITE.com domains."
+);
+
+doc.addFileEntry(
+  "lib/providers/auth_provider.dart",
+  "Enhanced softDeleteAccount() to immediately trigger the delete-account Edge Function for complete account data purge (App Store compliance)."
+);
+
+doc.addFileEntry(
+  "lib/repositories/auth_repository.dart",
+  "Added triggerAccountDeletion() method calling the backend delete-account Edge Function."
+);
+
+doc.addFileEntry(
+  "lib/repositories/co_owner_repository.dart",
+  "Upgraded Co-Owner access code generator from 4 to 8 random alphanumeric characters (ADMN-XXXXXXXX), expanding entropy to over 850 billion combinations."
+);
+
+doc.addFileEntry(
+  "lib/repositories/project_repository.dart",
+  "Updated deleteProject() to retrieve all image storage_paths from submission_images and purge them from Supabase Storage before removing the project record."
+);
+
+doc.addSubheading("Folder: supabase/ (Backend, Edge Functions & Migrations)");
+
+doc.addFileEntry(
+  "supabase/functions/verify-payment/index.ts [NEW]",
+  "New Edge Function performing server-side HMAC-SHA256 signature verification using RAZORPAY_KEY_SECRET and updating owner subscription slots using service_role."
+);
+
+doc.addFileEntry(
+  "supabase/functions/send-notification/index.ts",
+  "Added Supabase Bearer JWT authentication check, token structure inspection, and required parameter schema validation to prevent unauthenticated push notification spam."
+);
+
+doc.addFileEntry(
+  "supabase/migrations/20261102_security_hardening.sql [NEW]",
+  "Complete PostgreSQL migration containing the owner subscription fields protection trigger, login rate-limiting table, 5 MB/MIME storage bucket constraints, and pg_cron 30-day purge."
+);
+
+doc.addSubheading("Folder: android/ (Native Android Configuration)");
+
+doc.addFileEntry(
+  "android/app/build.gradle.kts",
+  "Configured release build type to link custom ProGuard rules (proguard-rules.pro) for R8 optimization and reflection safety."
+);
+
+doc.addFileEntry(
+  "android/app/proguard-rules.pro [NEW]",
+  "Custom rules preserving Razorpay WebView JavascriptInterface methods (@JavascriptInterface, onPayment*), AdMob, and Firebase Cloud Messaging reflection classes."
+);
+
+doc.addFileEntry(
+  "android/app/src/main/AndroidManifest.xml",
+  "Removed ACCESS_BACKGROUND_LOCATION permission. Added default FCM notification channel (sahi_report_submissions). Added deep linking intent filters (fieldtrack://, sahireport://). Added <queries> for url_launcher on Android 11+."
+);
+
+doc.addSubheading("Folder: ios/ (Native iOS Configuration)");
+
+doc.addFileEntry(
+  "ios/Podfile",
+  "Corrected typo GCC_PREPROCESSOR_definitions to uppercase GCC_PREPROCESSOR_DEFINITIONS in post_install so camera and location permission macros compile into permission_handler."
+);
+
+doc.addFileEntry(
+  "ios/Runner/Info.plist",
+  "Removed NSLocationAlwaysAndWhenInUseUsageDescription to satisfy Apple Guideline 5.1.5. Standardized CFBundleName to SahiReport. Added CFBundleURLTypes for deep linking. Expanded SKAdNetworkItems for AdMob."
+);
+
+doc.addSubheading("Documentation & Artifacts");
+
+doc.addFileEntry(
+  "docs/ANDROID_AND_IOS_UPDATES.md (and root)",
+  "Dedicated technical guide detailing every native platform update, configuration diffs, and Android/iOS build verification commands."
+);
+
+doc.addFileEntry(
+  "docs/SAHIREPORT_SECURITY_AUDIT_AND_FIXES.pdf (and root)",
+  "This publication-grade PDF report documenting executive summary, vulnerability matrix, technical fixes, and codebase change map."
+);
+
+// Section 8: Deployment Instructions
+doc.addSectionHeading("8. Deployment & Verification Checklist");
 doc.addBullet("Step 1 (Database)", "Open Supabase Dashboard -> SQL Editor and execute supabase/migrations/20261102_security_hardening.sql.");
 doc.addBullet("Step 2 (Edge Functions)", "Run: supabase secrets set RAZORPAY_KEY_SECRET='your_secret' && supabase functions deploy verify-payment && supabase functions deploy send-notification.");
 doc.addBullet("Step 3 (Android Build)", "Execute: flutter build appbundle --release.");
