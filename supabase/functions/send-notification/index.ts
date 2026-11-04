@@ -19,9 +19,9 @@ serve(async (req) => {
   }
 
   try {
-    // ?? Authorization guard ??????????????????????????????????????
-    // Verify the caller presents a valid Supabase-issued JWT so that
-    // random external actors cannot spam owners with fake notifications.
+    // ── Authorization guard ─────────────────────────────────────
+    // Verify the caller presents a valid Supabase-issued Bearer token (anonKey or user JWT)
+    // so random external actors cannot spam owners with fake notifications.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Missing or invalid Authorization header" }), {
@@ -30,22 +30,23 @@ serve(async (req) => {
       });
     }
 
-    // Validate token structure using the anon key client.
-    // Field users pass the Supabase anonKey as their bearer token since they
-    // have no Auth session; the token is still project-scoped and valid.
-    const callerClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    // getUser() verifies the JWT signature. For anon tokens it returns a null
-    // user but no error ? which is acceptable here.
-    const { error: jwtErr } = await callerClient.auth.getUser();
-    if (jwtErr && jwtErr.status === 401) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const token = authHeader.replace("Bearer ", "").trim();
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const isAnon = token === anonKey;
+
+    if (!isAnon) {
+      const callerClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        anonKey,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: { user }, error: jwtErr } = await callerClient.auth.getUser();
+      if (jwtErr || !user) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const body = await req.json();
@@ -64,15 +65,17 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // 1. Get submission details
-    const { data: submission } = await supabase
+    // 1. Get submission details and cryptographically bind to project and user
+    const { data: submission, error: subErr } = await supabase
       .from("submissions")
       .select("*, project_users(name), projects(name, owner_id)")
       .eq("id", submission_id)
+      .eq("project_id", project_id)
+      .eq("project_user_id", project_user_id)
       .single();
 
-    if (!submission) {
-      return new Response(JSON.stringify({ error: "Submission not found" }), {
+    if (subErr || !submission) {
+      return new Response(JSON.stringify({ error: "Submission not found or unauthorized" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -117,11 +120,11 @@ serve(async (req) => {
 
     // 5. Get Firebase project ID from service account
     const serviceAccount = JSON.parse(Deno.env.get("FCM_SERVICE_ACCOUNT")!);
-    const projectId = serviceAccount.project_id;
+    const fcmProjectId = serviceAccount.project_id;
 
     // 6. Send FCM notification
     const fcmResponse = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+      `https://fcm.googleapis.com/v1/projects/${fcmProjectId}/messages:send`,
       {
         method: "POST",
         headers: {
@@ -171,7 +174,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Edge function error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

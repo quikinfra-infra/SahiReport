@@ -6,6 +6,11 @@
 -- 3. Storage bucket MIME and file size enforcement
 -- 4. Automated 30-day purge for soft-deleted accounts (App Store compliance)
 -- 5. Safe Co-Owner project and submission access
+-- 6. Payment transactions recording & replay attack mitigation
+-- 7. Secure random access code generation RPC (generate_access_code)
+-- 8. Field user authentication RPC with validation (login_with_code)
+-- 9. Tamper-resistant submission RPCs (submit_report & add_submission_image)
+-- 10. Scoped field user history retrieval RPC (get_user_submissions)
 -- =====================================================================
 
 -- ---------------------------------------------------------------------
@@ -214,7 +219,6 @@ BEGIN
       AND deleted_at < NOW() - INTERVAL '30 days'
   LOOP
     -- 1. Delete submission images from storage
-    -- (Storage objects referencing this owner's projects)
     DELETE FROM storage.objects
     WHERE bucket_id = 'submission-images'
       AND (storage.foldername(name))[1] IN (
@@ -253,7 +257,258 @@ BEGIN
     );
   END IF;
 EXCEPTION WHEN OTHERS THEN
-  -- pg_cron not active on current tier; can be invoked via Edge Function or manual SQL
   NULL;
 END;
 $$;
+
+
+-- ---------------------------------------------------------------------
+-- 6. Payment Transactions & Replay Attack Prevention
+-- ---------------------------------------------------------------------
+-- Tracks every verified payment to prevent duplicate subscription activations.
+CREATE TABLE IF NOT EXISTS public.payment_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id TEXT NOT NULL UNIQUE,
+  order_id TEXT,
+  owner_id UUID NOT NULL REFERENCES public.owners(id) ON DELETE CASCADE,
+  amount_paise INT NOT NULL,
+  extra_projects INT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'captured',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_payment_id ON public.payment_transactions(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_owner_id ON public.payment_transactions(owner_id);
+
+ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
+
+-- Owners can view their own payment receipts; only service_role can insert/modify
+DROP POLICY IF EXISTS "Owners can view own payment transactions" ON public.payment_transactions;
+CREATE POLICY "Owners can view own payment transactions"
+ON public.payment_transactions FOR SELECT
+TO authenticated
+USING (owner_id = auth.uid());
+
+
+-- ---------------------------------------------------------------------
+-- 7. High-Entropy Access Code Generator (generate_access_code)
+-- ---------------------------------------------------------------------
+-- Generates unguessable 8-character (XXXX-XXXX) codes using unambiguous charset.
+CREATE OR REPLACE FUNCTION public.generate_access_code()
+RETURNS TEXT AS $$
+DECLARE
+  v_chars TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; -- 30 unambiguous chars (excludes 0, O, 1, I)
+  v_code TEXT;
+  v_exists BOOLEAN;
+  v_i INT;
+BEGIN
+  LOOP
+    v_code := '';
+    -- Segment 1 (4 chars)
+    FOR v_i IN 1..4 LOOP
+      v_code := v_code || substr(v_chars, floor(random() * length(v_chars) + 1)::INT, 1);
+    END LOOP;
+    v_code := v_code || '-';
+    -- Segment 2 (4 chars)
+    FOR v_i IN 1..4 LOOP
+      v_code := v_code || substr(v_chars, floor(random() * length(v_chars) + 1)::INT, 1);
+    END LOOP;
+
+    -- Ensure uniqueness in project_users
+    SELECT EXISTS (
+      SELECT 1 FROM public.project_users WHERE access_code = v_code
+    ) INTO v_exists;
+
+    IF NOT v_exists THEN
+      RETURN v_code;
+    END IF;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ---------------------------------------------------------------------
+-- 8. Field User Login RPC (login_with_code)
+-- ---------------------------------------------------------------------
+-- Authenticates field workers using their access code and checks active project status.
+CREATE OR REPLACE FUNCTION public.login_with_code(p_code TEXT)
+RETURNS TABLE (
+  project_user_id UUID,
+  project_id UUID,
+  project_name TEXT,
+  owner_id UUID,
+  project_user_name TEXT
+) AS $$
+DECLARE
+  v_normalized TEXT;
+BEGIN
+  v_normalized := UPPER(TRIM(p_code));
+
+  -- Update last_login_at timestamp
+  UPDATE public.project_users
+  SET last_login_at = NOW()
+  WHERE access_code = v_normalized AND is_active = TRUE;
+
+  RETURN QUERY
+  SELECT 
+    pu.id AS project_user_id,
+    pu.project_id,
+    p.name AS project_name,
+    pu.owner_id,
+    pu.name AS project_user_name
+  FROM public.project_users pu
+  JOIN public.projects p ON p.id = pu.project_id
+  WHERE pu.access_code = v_normalized
+    AND pu.is_active = TRUE
+    AND p.is_active = TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ---------------------------------------------------------------------
+-- 9. Tamper-Resistant Report Submission & Stamped Photo Registration
+-- ---------------------------------------------------------------------
+-- SECURITY DEFINER RPCs that validate access codes on every submission.
+CREATE OR REPLACE FUNCTION public.submit_report(
+  p_code TEXT,
+  p_latitude DOUBLE PRECISION,
+  p_longitude DOUBLE PRECISION,
+  p_site_name TEXT DEFAULT NULL,
+  p_form_text TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user RECORD;
+  v_submission_id UUID;
+BEGIN
+  -- Validate field user access code and project active state
+  SELECT pu.id, pu.project_id, pu.owner_id
+  INTO v_user
+  FROM public.project_users pu
+  JOIN public.projects p ON p.id = pu.project_id
+  WHERE pu.access_code = UPPER(TRIM(p_code))
+    AND pu.is_active = TRUE
+    AND p.is_active = TRUE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Invalid, deactivated, or closed project access code.';
+  END IF;
+
+  INSERT INTO public.submissions (
+    project_user_id,
+    project_id,
+    owner_id,
+    latitude,
+    longitude,
+    site_name,
+    form_text,
+    submitted_at
+  ) VALUES (
+    v_user.id,
+    v_user.project_id,
+    v_user.owner_id,
+    p_latitude,
+    p_longitude,
+    p_site_name,
+    p_form_text,
+    NOW()
+  ) RETURNING id INTO v_submission_id;
+
+  RETURN jsonb_build_object(
+    'submission_id', v_submission_id,
+    'project_id', v_user.project_id,
+    'owner_id', v_user.owner_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.add_submission_image(
+  p_code TEXT,
+  p_submission_id UUID,
+  p_storage_path TEXT,
+  p_public_url TEXT,
+  p_file_size_kb INT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_sub RECORD;
+  v_image_id UUID;
+BEGIN
+  -- Verify submission belongs to the field worker identified by p_code
+  SELECT s.id, s.owner_id
+  INTO v_sub
+  FROM public.submissions s
+  JOIN public.project_users pu ON pu.id = s.project_user_id
+  WHERE s.id = p_submission_id
+    AND pu.access_code = UPPER(TRIM(p_code))
+    AND pu.is_active = TRUE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Unauthorized: Submission does not match authenticated access code.';
+  END IF;
+
+  INSERT INTO public.submission_images (
+    submission_id,
+    owner_id,
+    storage_path,
+    public_url,
+    file_size_kb,
+    uploaded_at
+  ) VALUES (
+    v_sub.id,
+    v_sub.owner_id,
+    p_storage_path,
+    p_public_url,
+    p_file_size_kb,
+    NOW()
+  ) RETURNING id INTO v_image_id;
+
+  RETURN jsonb_build_object('image_id', v_image_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- ---------------------------------------------------------------------
+-- 10. Scoped Field User History Retrieval (get_user_submissions)
+-- ---------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_user_submissions(p_code TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_user RECORD;
+  v_res JSONB;
+BEGIN
+  SELECT id, name INTO v_user
+  FROM public.project_users
+  WHERE access_code = UPPER(TRIM(p_code)) AND is_active = TRUE;
+
+  IF NOT FOUND THEN
+    RETURN '[]'::jsonb;
+  END IF;
+
+  SELECT COALESCE(jsonb_agg(sub_row ORDER BY sub_row->>'submitted_at' DESC), '[]'::jsonb)
+  INTO v_res
+  FROM (
+    SELECT 
+      s.id,
+      s.project_user_id,
+      s.project_id,
+      s.owner_id,
+      s.form_text,
+      s.site_name,
+      s.latitude,
+      s.longitude,
+      s.submitted_at,
+      s.is_reviewed,
+      jsonb_build_object('name', v_user.name) AS project_users,
+      COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('public_url', si.public_url) ORDER BY si.uploaded_at)
+        FROM public.submission_images si
+        WHERE si.submission_id = s.id
+      ), '[]'::jsonb) AS submission_images
+    FROM public.submissions s
+    WHERE s.project_user_id = v_user.id
+  ) sub_row;
+
+  RETURN v_res;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -506,17 +506,17 @@ doc.addSubheading("Folder: supabase/ (Backend, Edge Functions & Migrations)");
 
 doc.addFileEntry(
   "supabase/functions/verify-payment/index.ts [NEW]",
-  "New Edge Function performing server-side HMAC-SHA256 signature verification using RAZORPAY_KEY_SECRET and updating owner subscription slots using service_role."
+  "New Edge Function with replay attack prevention via payment_transactions table, dual HMAC-SHA256 and Razorpay REST API verification, and secure service_role plan slot allocation."
 );
 
 doc.addFileEntry(
   "supabase/functions/send-notification/index.ts",
-  "Added Supabase Bearer JWT authentication check, token structure inspection, and required parameter schema validation to prevent unauthenticated push notification spam."
+  "Added Bearer token verification supporting both anonymous project tokens and user JWTs, plus strict submission-to-project ownership binding to eliminate notification forgery."
 );
 
 doc.addFileEntry(
   "supabase/migrations/20261102_security_hardening.sql [NEW]",
-  "Complete PostgreSQL migration containing the owner subscription fields protection trigger, login rate-limiting table, 5 MB/MIME storage bucket constraints, and pg_cron 30-day purge."
+  "PostgreSQL migration containing subscription field protection triggers, auth rate limiting, payment_transactions replay table, 5MB/MIME storage limits, pg_cron purge, and RPCs."
 );
 
 doc.addSubheading("Folder: android/ (Native Android Configuration)");
@@ -571,4 +571,6 @@ doc.addBullet("Step 4 (iOS Build)", "Execute: cd ios && pod install && cd .. && 
 const pdfBuffer = doc.buildPDF();
 const outputPath = path.join(__dirname, 'docs', 'SAHIREPORT_SECURITY_AUDIT_AND_FIXES.pdf');
 fs.writeFileSync(outputPath, pdfBuffer);
-console.log(`PDF successfully generated at: ${outputPath} (${pdfBuffer.length} bytes)`);
+const rootOutputPath = path.join(__dirname, 'SAHIREPORT_SECURITY_AUDIT_AND_FIXES.pdf');
+fs.writeFileSync(rootOutputPath, pdfBuffer);
+console.log(`PDF successfully generated at: ${outputPath} and ${rootOutputPath} (${pdfBuffer.length} bytes)`);

@@ -531,7 +531,7 @@ endobj
 << /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /MediaBox [0 0 595.28 841.89] /Contents 13 0 R >>
 endobj
 13 0 obj
-<< /Length 6053 >>
+<< /Length 6120 >>
 stream
 0.098 0.165 0.353 rg
 50 796.89 495.28 2 re f
@@ -553,97 +553,98 @@ BT /F2 10.5 Tf 50 706.89 Td (Folder: supabase/ \(Backend, Edge Functions & Migra
 0.1 0.2 0.45 rg
 BT /F3 8.5 Tf 56 690.89 Td (supabase/functions/verify-payment/index.ts [NEW]) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 673.89 Td (New Edge Function performing server-side HMAC-SHA256 signature verification using) Tj ET
-BT /F1 8.8 Tf 50 661.89 Td (RAZORPAY_KEY_SECRET and updating owner subscription slots using service_role.) Tj ET
+BT /F1 8.8 Tf 50 673.89 Td (New Edge Function with replay attack prevention via payment_transactions table, dual) Tj ET
+BT /F1 8.8 Tf 50 661.89 Td (HMAC-SHA256 and Razorpay REST API verification, and secure service_role plan slot) Tj ET
+BT /F1 8.8 Tf 50 649.89 Td (allocation.) Tj ET
 0.94 0.96 0.98 rg
-50 642.89 495.28 16 re f
+50 630.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 645.89 Td (supabase/functions/send-notification/index.ts) Tj ET
+BT /F3 8.5 Tf 56 633.89 Td (supabase/functions/send-notification/index.ts) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 628.89 Td (Added Supabase Bearer JWT authentication check, token structure inspection, and required) Tj ET
-BT /F1 8.8 Tf 50 616.89 Td (parameter schema validation to prevent unauthenticated push notification spam.) Tj ET
+BT /F1 8.8 Tf 50 616.89 Td (Added Bearer token verification supporting both anonymous project tokens and user JWTs, plus) Tj ET
+BT /F1 8.8 Tf 50 604.89 Td (strict submission-to-project ownership binding to eliminate notification forgery.) Tj ET
 0.94 0.96 0.98 rg
-50 597.89 495.28 16 re f
+50 585.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 600.89 Td (supabase/migrations/20261102_security_hardening.sql [NEW]) Tj ET
+BT /F3 8.5 Tf 56 588.89 Td (supabase/migrations/20261102_security_hardening.sql [NEW]) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 583.89 Td (Complete PostgreSQL migration containing the owner subscription fields protection trigger,) Tj ET
-BT /F1 8.8 Tf 50 571.89 Td (login rate-limiting table, 5 MB/MIME storage bucket constraints, and pg_cron 30-day purge.) Tj ET
+BT /F1 8.8 Tf 50 571.89 Td (PostgreSQL migration containing subscription field protection triggers, auth rate limiting,) Tj ET
+BT /F1 8.8 Tf 50 559.89 Td (payment_transactions replay table, 5MB/MIME storage limits, pg_cron purge, and RPCs.) Tj ET
 0.15 0.25 0.45 rg
-BT /F2 10.5 Tf 50 551.89 Td (Folder: android/ \(Native Android Configuration\)) Tj ET
+BT /F2 10.5 Tf 50 539.89 Td (Folder: android/ \(Native Android Configuration\)) Tj ET
 0.94 0.96 0.98 rg
-50 532.89 495.28 16 re f
+50 520.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 535.89 Td (android/app/build.gradle.kts) Tj ET
+BT /F3 8.5 Tf 56 523.89 Td (android/app/build.gradle.kts) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 518.89 Td (Configured release build type to link custom ProGuard rules \(proguard-rules.pro\) for R8) Tj ET
-BT /F1 8.8 Tf 50 506.89 Td (optimization and reflection safety.) Tj ET
+BT /F1 8.8 Tf 50 506.89 Td (Configured release build type to link custom ProGuard rules \(proguard-rules.pro\) for R8) Tj ET
+BT /F1 8.8 Tf 50 494.89 Td (optimization and reflection safety.) Tj ET
 0.94 0.96 0.98 rg
-50 487.89 495.28 16 re f
+50 475.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 490.89 Td (android/app/proguard-rules.pro [NEW]) Tj ET
+BT /F3 8.5 Tf 56 478.89 Td (android/app/proguard-rules.pro [NEW]) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 473.89 Td (Custom rules preserving Razorpay WebView JavascriptInterface methods \(@JavascriptInterface,) Tj ET
-BT /F1 8.8 Tf 50 461.89 Td (onPayment*\), AdMob, and Firebase Cloud Messaging reflection classes.) Tj ET
+BT /F1 8.8 Tf 50 461.89 Td (Custom rules preserving Razorpay WebView JavascriptInterface methods \(@JavascriptInterface,) Tj ET
+BT /F1 8.8 Tf 50 449.89 Td (onPayment*\), AdMob, and Firebase Cloud Messaging reflection classes.) Tj ET
 0.94 0.96 0.98 rg
-50 442.89 495.28 16 re f
+50 430.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 445.89 Td (android/app/src/main/AndroidManifest.xml) Tj ET
+BT /F3 8.5 Tf 56 433.89 Td (android/app/src/main/AndroidManifest.xml) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 428.89 Td (Removed ACCESS_BACKGROUND_LOCATION permission. Added default FCM notification channel) Tj ET
-BT /F1 8.8 Tf 50 416.89 Td (\(sahi_report_submissions\). Added deep linking intent filters \(fieldtrack://, sahireport://\).) Tj ET
-BT /F1 8.8 Tf 50 404.89 Td (Added <queries> for url_launcher on Android 11+.) Tj ET
+BT /F1 8.8 Tf 50 416.89 Td (Removed ACCESS_BACKGROUND_LOCATION permission. Added default FCM notification channel) Tj ET
+BT /F1 8.8 Tf 50 404.89 Td (\(sahi_report_submissions\). Added deep linking intent filters \(fieldtrack://, sahireport://\).) Tj ET
+BT /F1 8.8 Tf 50 392.89 Td (Added <queries> for url_launcher on Android 11+.) Tj ET
 0.15 0.25 0.45 rg
-BT /F2 10.5 Tf 50 384.89 Td (Folder: ios/ \(Native iOS Configuration\)) Tj ET
+BT /F2 10.5 Tf 50 372.89 Td (Folder: ios/ \(Native iOS Configuration\)) Tj ET
 0.94 0.96 0.98 rg
-50 365.89 495.28 16 re f
+50 353.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 368.89 Td (ios/Podfile) Tj ET
+BT /F3 8.5 Tf 56 356.89 Td (ios/Podfile) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 351.89 Td (Corrected typo GCC_PREPROCESSOR_definitions to uppercase GCC_PREPROCESSOR_DEFINITIONS in) Tj ET
-BT /F1 8.8 Tf 50 339.89 Td (post_install so camera and location permission macros compile into permission_handler.) Tj ET
+BT /F1 8.8 Tf 50 339.89 Td (Corrected typo GCC_PREPROCESSOR_definitions to uppercase GCC_PREPROCESSOR_DEFINITIONS in) Tj ET
+BT /F1 8.8 Tf 50 327.89 Td (post_install so camera and location permission macros compile into permission_handler.) Tj ET
 0.94 0.96 0.98 rg
-50 320.89 495.28 16 re f
+50 308.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 323.89 Td (ios/Runner/Info.plist) Tj ET
+BT /F3 8.5 Tf 56 311.89 Td (ios/Runner/Info.plist) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 306.89 Td (Removed NSLocationAlwaysAndWhenInUseUsageDescription to satisfy Apple Guideline 5.1.5.) Tj ET
-BT /F1 8.8 Tf 50 294.89 Td (Standardized CFBundleName to SahiReport. Added CFBundleURLTypes for deep linking. Expanded) Tj ET
-BT /F1 8.8 Tf 50 282.89 Td (SKAdNetworkItems for AdMob.) Tj ET
+BT /F1 8.8 Tf 50 294.89 Td (Removed NSLocationAlwaysAndWhenInUseUsageDescription to satisfy Apple Guideline 5.1.5.) Tj ET
+BT /F1 8.8 Tf 50 282.89 Td (Standardized CFBundleName to SahiReport. Added CFBundleURLTypes for deep linking. Expanded) Tj ET
+BT /F1 8.8 Tf 50 270.89 Td (SKAdNetworkItems for AdMob.) Tj ET
 0.15 0.25 0.45 rg
-BT /F2 10.5 Tf 50 262.89 Td (Documentation & Artifacts) Tj ET
+BT /F2 10.5 Tf 50 250.89 Td (Documentation & Artifacts) Tj ET
 0.94 0.96 0.98 rg
-50 243.89 495.28 16 re f
+50 231.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 246.89 Td (docs/ANDROID_AND_IOS_UPDATES.md \(and root\)) Tj ET
+BT /F3 8.5 Tf 56 234.89 Td (docs/ANDROID_AND_IOS_UPDATES.md \(and root\)) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 229.89 Td (Dedicated technical guide detailing every native platform update, configuration diffs, and) Tj ET
-BT /F1 8.8 Tf 50 217.89 Td (Android/iOS build verification commands.) Tj ET
+BT /F1 8.8 Tf 50 217.89 Td (Dedicated technical guide detailing every native platform update, configuration diffs, and) Tj ET
+BT /F1 8.8 Tf 50 205.89 Td (Android/iOS build verification commands.) Tj ET
 0.94 0.96 0.98 rg
-50 198.89 495.28 16 re f
+50 186.89 495.28 16 re f
 0.1 0.2 0.45 rg
-BT /F3 8.5 Tf 56 201.89 Td (docs/SAHIREPORT_SECURITY_AUDIT_AND_FIXES.pdf \(and root\)) Tj ET
+BT /F3 8.5 Tf 56 189.89 Td (docs/SAHIREPORT_SECURITY_AUDIT_AND_FIXES.pdf \(and root\)) Tj ET
 0.18 0.22 0.28 rg
-BT /F1 8.8 Tf 50 184.89 Td (This publication-grade PDF report documenting executive summary, vulnerability matrix,) Tj ET
-BT /F1 8.8 Tf 50 172.89 Td (technical fixes, and codebase change map.) Tj ET
+BT /F1 8.8 Tf 50 172.89 Td (This publication-grade PDF report documenting executive summary, vulnerability matrix,) Tj ET
+BT /F1 8.8 Tf 50 160.89 Td (technical fixes, and codebase change map.) Tj ET
 0.92 0.95 0.99 rg
-50 144.89 495.28 22 re f
+50 132.89 495.28 22 re f
 0.1 0.25 0.55 RG 1.5 w
-50 144.89 m 50 166.89 l S
+50 132.89 m 50 154.89 l S
 0.08 0.18 0.42 rg
-BT /F2 13 Tf 58 150.89 Td (8. Deployment & Verification Checklist) Tj ET
+BT /F2 13 Tf 58 138.89 Td (8. Deployment & Verification Checklist) Tj ET
 0.1 0.3 0.6 rg
-54 129.89 3 3 re f
+54 117.88999999999999 3 3 re f
 0.2 0.24 0.3 rg
-BT /F1 9.5 Tf 65 126.88999999999999 Td (Step 1 \(Database\): Open Supabase Dashboard -> SQL Editor and execute) Tj ET
+BT /F1 9.5 Tf 65 114.88999999999999 Td (Step 1 \(Database\): Open Supabase Dashboard -> SQL Editor and execute) Tj ET
 0.2 0.24 0.3 rg
-BT /F1 9.5 Tf 65 113.88999999999999 Td (supabase/migrations/20261102_security_hardening.sql.) Tj ET
+BT /F1 9.5 Tf 65 101.88999999999999 Td (supabase/migrations/20261102_security_hardening.sql.) Tj ET
 0.1 0.3 0.6 rg
-54 101.88999999999999 3 3 re f
+54 89.88999999999999 3 3 re f
 0.2 0.24 0.3 rg
-BT /F1 9.5 Tf 65 98.88999999999999 Td (Step 2 \(Edge Functions\): Run: supabase secrets set RAZORPAY_KEY_SECRET='your_secret') Tj ET
+BT /F1 9.5 Tf 65 86.88999999999999 Td (Step 2 \(Edge Functions\): Run: supabase secrets set RAZORPAY_KEY_SECRET='your_secret') Tj ET
 0.2 0.24 0.3 rg
-BT /F1 9.5 Tf 65 85.88999999999999 Td (&& supabase functions deploy verify-payment && supabase functions deploy) Tj ET
+BT /F1 9.5 Tf 65 73.88999999999999 Td (&& supabase functions deploy verify-payment && supabase functions deploy) Tj ET
 0.85 0.88 0.92 RG 1 w
 50 45 m 545.28 45 l S
 0.45 0.5 0.6 rg
@@ -697,10 +698,10 @@ xref
 0000015272 00000 n 
 0000021640 00000 n 
 0000021794 00000 n 
-0000027900 00000 n 
-0000028054 00000 n 
+0000027967 00000 n 
+0000028121 00000 n 
 trailer
 << /Size 16 /Root 1 0 R >>
 startxref
-28976
+29043
 %%EOF

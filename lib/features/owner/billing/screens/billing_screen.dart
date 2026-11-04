@@ -48,10 +48,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
 
-    // Guard: all three fields must be present for a valid Razorpay response.
-    if (response.paymentId == null ||
-        response.orderId == null ||
-        response.signature == null) {
+    // Guard: Razorpay paymentId must be present
+    if (response.paymentId == null || response.paymentId!.isEmpty) {
       if (mounted) {
         setState(() {
           _paying = false;
