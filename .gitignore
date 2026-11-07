@@ -39,7 +39,24 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android Studio and Gradle build artifacts
+/android/build/
+/android/.gradle/
+/android/app/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Supabase CLI cache and temp files
+supabase/.temp/
+
+# Release signing material — never commit these
+android/key.properties
+*.jks
+*.keystore
+
+# Archives and temporary files
+*.rar
+*.zip
+*.tar.gz
+*.7z

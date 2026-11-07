@@ -161,8 +161,8 @@ serve(async (req) => {
 
     if (!fcmResponse.ok) {
       console.error("FCM error:", fcmResult);
-      return new Response(JSON.stringify({ error: fcmResult }), {
-        status: 500,
+      return new Response(JSON.stringify({ error: "Notification delivery failed" }), {
+        status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -174,7 +174,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Edge function error:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
+    return new Response(JSON.stringify({ error: "Notification request failed" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

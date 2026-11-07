@@ -48,8 +48,13 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
 
-    // Guard: Razorpay paymentId must be present
-    if (response.paymentId == null || response.paymentId!.isEmpty) {
+    // Guard: a verified payment always carries all three Razorpay ids.
+    if (response.paymentId == null ||
+        response.paymentId!.isEmpty ||
+        response.orderId == null ||
+        response.orderId!.isEmpty ||
+        response.signature == null ||
+        response.signature!.isEmpty) {
       if (mounted) {
         setState(() {
           _paying = false;
@@ -60,17 +65,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     }
 
     try {
-      // ?? Server-side HMAC-SHA256 signature verification ????????
+      // Server-side HMAC-SHA256 signature verification.
       // The Edge Function (verify-payment) re-computes the expected
-      // signature using RAZORPAY_KEY_SECRET (never shipped in the app)
-      // and updates the DB only when the signatures match.
+      // signature using RAZORPAY_KEY_SECRET (never shipped in the app),
+      // fetches the order/payment from Razorpay, and derives the slot
+      // count from the order — never from this request body.
       final result = await Supabase.instance.client.functions.invoke(
         'verify-payment',
         body: {
           'razorpay_payment_id': response.paymentId,
           'razorpay_order_id':   response.orderId,
           'razorpay_signature':  response.signature,
-          'extra_projects':      _extraProjects,
         },
       );
 
@@ -120,7 +125,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     if (mounted) setState(() => _paying = false);
   }
 
-  void _startPayment() {
+  Future<void> _startPayment() async {
     final owner = ref.read(authProvider).owner;
     if (owner == null) return;
     setState(() {
@@ -128,9 +133,58 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       _error = null;
     });
 
+    // The order must be created server-side: verify-payment needs a
+    // razorpay_order_id and derives the slot count from the order notes.
+    // Never trust a client-supplied amount.
+    final Map<String, dynamic> order;
+    try {
+      final result = await Supabase.instance.client.functions.invoke(
+        'create-order',
+        body: {'extra_projects': _extraProjects},
+      );
+
+      if (result.status != 200) {
+        final message =
+            (result.data as Map<String, dynamic>?)?['error'] as String? ??
+                'Could not start the payment. Please try again.';
+        if (mounted) {
+          setState(() {
+            _paying = false;
+            _error = message;
+          });
+        }
+        return;
+      }
+
+      final data = result.data;
+      if (data is! Map<String, dynamic> ||
+          data['order_id'] is! String ||
+          data['amount'] is! int) {
+        if (mounted) {
+          setState(() {
+            _paying = false;
+            _error = 'Could not start the payment. Please try again.';
+          });
+        }
+        return;
+      }
+      order = data;
+    } catch (e) {
+      debugPrint('create-order failed: $e');
+      if (mounted) {
+        setState(() {
+          _paying = false;
+          _error = 'Could not reach the payment server. Please try again.';
+        });
+      }
+      return;
+    }
+
     final options = {
-      'key': AppConstants.razorpayKeyId,
-      'amount': _totalPaise,
+      'key': (order['key_id'] as String?) ?? AppConstants.razorpayKeyId,
+      'order_id': order['order_id'] as String,
+      'amount': order['amount'] as int,
+      'currency': (order['currency'] as String?) ?? 'INR',
       'name': AppConstants.appName,
       'description':
       '$_extraProjects Pro project slot${_extraProjects == 1 ? '' : 's'} · 1 year',

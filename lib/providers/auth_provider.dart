@@ -383,14 +383,30 @@ class AuthNotifier extends StateNotifier<AuthSessionState> {
 
     // Step 1: Mark as pending deletion (30-day grace period).
     await _repo.softDeleteAccount(owner.id);
-    await _repo.logout();
 
-    // Step 2: Hard-delete via Edge Function (App Store/Play Store compliance).
+    // Step 2: Hard-delete via Edge Function while the session is still
+    // valid. Calling this after logout() returns 401, because the JWT is
+    // already gone — which is why deletion used to silently never run.
+    var purged = false;
     try {
       await _repo.triggerAccountDeletion();
+      purged = true;
     } catch (e) {
       // Non-critical: pg_cron will purge after 30 days regardless.
       debugPrint('delete-account Edge Function failed (non-critical): $e');
+    }
+
+    // Step 3: Drop the session. After a successful purge the auth user is
+    // gone, so only the local session can be cleared; otherwise revoke the
+    // refresh token server-side as well.
+    try {
+      if (purged) {
+        await _repo.logoutLocal();
+      } else {
+        await _repo.logout();
+      }
+    } catch (e) {
+      debugPrint('Logout after account deletion failed: $e');
     }
 
     state = const AuthSessionState(

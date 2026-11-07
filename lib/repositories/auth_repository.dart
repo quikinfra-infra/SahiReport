@@ -115,6 +115,13 @@ class AuthRepository {
     await supabase.auth.signOut();
   }
 
+  // ── Owner: Clear the local session only ───────────────────
+  // Used after a hard account deletion: the auth user no longer exists,
+  // so a server-side sign-out would fail, but the local tokens must go.
+  Future<void> logoutLocal() async {
+    await supabase.auth.signOut(scope: SignOutScope.local);
+  }
+
   // ── Owner: Get current profile ────────────────────────────
   Future<OwnerModel?> getCurrentOwner() async {
     final user = supabase.auth.currentUser;
@@ -217,10 +224,18 @@ class AuthRepository {
   // ── Owner: Trigger hard account deletion via Edge Function ─
   // Calls the delete-account Edge Function which purges all owner data
   // and permanently deletes the Supabase Auth user record. This must be
-  // called with a valid owner Auth session (before logout). Safe to fail —
-  // pg_cron will clean up accounts where deleted_at > 30 days.
+  // called with a valid owner Auth session (before logout). The function
+  // returns non-200 on any failure, so a bare invoke() is not enough —
+  // callers need to know whether the purge actually happened.
   Future<void> triggerAccountDeletion() async {
-    await supabase.functions.invoke('delete-account');
+    final result = await supabase.functions.invoke('delete-account');
+    if (result.status != 200) {
+      final data = result.data;
+      final message =
+          (data is Map<String, dynamic> ? data['error'] as String? : null) ??
+              'Account deletion failed (status ${result.status}).';
+      throw Exception(message);
+    }
   }
 
   // ── Auth state stream ─────────────────────────────────────
